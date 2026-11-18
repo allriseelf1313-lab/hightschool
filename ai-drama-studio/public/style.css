@@ -44,3 +44,35 @@ button:disabled { opacity: .5; cursor: wait; }
 #toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
   background: #000; padding: 10px 16px; border-radius: 8px; z-index: 11; }
 @media (max-width: 600px) { .row { grid-template-columns: 1fr; } .ep { flex-direction: column; } }
+
+/* storyboard */
+.small { font-size: .8rem; }
+.check { padding: 10px 12px; border-radius: 10px; margin: 8px 0 12px; }
+.check.good { background: #0f2f22; border: 1px solid #1f6f4a; }
+.check.bad { background: #3a2410; border: 1px solid #b45309; }
+.scene-board { display: grid; grid-template-columns: auto 1fr; gap: 16px; align-items: start; margin: 8px 0 14px; }
+.sb-cap { color: var(--muted); font-size: .8rem; margin-bottom: 6px; }
+.strip-wrap { min-width: 0; }
+.strip { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 6px; }
+.strip-item { text-align: center; font-size: .8rem; flex: 0 0 auto; }
+.strip-item.warn .sb-frame { outline: 2px solid #f97316; }
+.sb-frame, .sb-plan { display: block; border-radius: 6px; }
+.sb-third { stroke: #ffffff14; stroke-width: 1; }
+.sb-name { fill: #fff; font-size: 10px; font-family: inherit; paint-order: stroke; stroke: #000a; stroke-width: 3px; }
+.sb-room { fill: #0e0d22; stroke: var(--line); }
+.sb-axis { stroke: #f97316; stroke-width: 1.5; stroke-dasharray: 5 4; }
+.sb-cone { fill: #38bdf833; stroke: #38bdf8aa; stroke-width: 1; }
+.sb-cam { fill: #38bdf8; }
+.sb-camnum { fill: #000; font-size: 9px; font-weight: 700; }
+.shot-body { display: flex; gap: 14px; align-items: flex-start; margin-top: 6px; }
+.shot-visual { display: flex; flex-direction: column; gap: 8px; flex: 0 0 auto; }
+.shot-text { flex: 1; min-width: 0; }
+.shot.warn { border-left-color: #f97316; }
+.warnline { background: #3a2410; border-radius: 6px; padding: 6px 8px; margin: 4px 0; font-size: .88rem; }
+@media (max-width: 700px) {
+  .scene-board { grid-template-columns: 1fr; }
+  .shot-body { flex-direction: column; }
+  .shot-visual { flex-direction: row; }
+}
+.strip-item { width: 96px; }
+.strip-item .muted { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

@@ -83,6 +83,7 @@ function renderBible() {
     <p><b>Logline:</b> ${esc(b.logline)}</p>
     <p class="muted">แนว: ${esc(b.genre)} · โทน: ${esc(b.tone)} · ฉากหลัง: ${esc(b.setting)}</p>
     ${promptBlock("Visual style", b.visual_style)}
+    ${b.negative_prompt ? promptBlock("Negative prompt", b.negative_prompt) : ""}
 
     <h3>👥 ตัวละคร (ใช้ appearance prompt สร้างภาพอ้างอิงก่อน เพื่อให้หน้าเหมือนกันทุกช็อต)</h3>
     <div class="grid">${b.characters.map((c) => `<div class="mini">
@@ -145,27 +146,54 @@ function renderEpisode(n) {
   const ep = state.episodes[n];
   const v = $("episodeView");
   v.hidden = false;
+  const b = state.bible;
   const shots = ep.scenes.flatMap((s) => s.shots);
   const totalSec = shots.reduce((t, s) => t + (s.duration_seconds || 0), 0);
+  const hasGeo = shots.some((sh) => sh.camera && sh.positions);
+  const checks = Object.fromEntries(ep.scenes.map((s) => [s.scene_number, hasGeo ? SB.check(s, charName) : {}]));
+  const warnCount = Object.values(checks).reduce((t, c) => t + Object.values(c).flat().length, 0);
+  const neg = b.negative_prompt ? `, avoid: ${b.negative_prompt}` : "";
+
   v.innerHTML = `<div class="card">
     <h2>3. บทถ่ายทำ EP${ep.episode_number}: ${esc(ep.title)}</h2>
     <p class="muted">${ep.scenes.length} ฉาก · ${shots.length} ช็อต (= ${shots.length} คลิปวิดีโอ) · ยาวประมาณ ${Math.round(totalSec / 60 * 10) / 10} นาที</p>
+    ${hasGeo ? `<div class="check ${warnCount ? "bad" : "good"}">${warnCount
+      ? `⚠️ ตรวจพบ ${warnCount} จุดที่มุมกล้องอาจไม่ต่อเนื่อง (ดูกรอบสีส้มในช็อต) — แก้เองหรือกด 🔄 เขียนใหม่`
+      : "✅ ตรวจมุมกล้องแล้ว: กล้องอยู่ฝั่งเดียวของเส้น 180° · ตำแหน่งตัวละครในเฟรมตรงกับผัง · ไม่มี jump cut"}</div>` : ""}
     <div class="toolbar">
       <button class="ghost" id="copyAllVideo">📋 คัดลอกพรอมต์วิดีโอทั้งตอน</button>
       <button class="ghost" id="regen">🔄 เขียนตอนนี้ใหม่</button>
     </div>
     ${ep.scenes.map((s) => `<h3>ฉาก ${s.scene_number} — ${esc(locName(s.location_id))} (${esc(s.time_of_day)})</h3>
       <p>${esc(s.summary)}</p>
-      ${s.shots.map((sh) => `<div class="shot">
-        <b>ช็อต ${s.scene_number}.${sh.shot_number}</b>
-        <span class="muted">· ${esc(sh.shot_type)} · ${esc(sh.camera_move)} · ${sh.duration_seconds}s · ${sh.characters.map(charName).map(esc).join(", ")}</span>
-        <p>${esc(sh.action)}</p>
-        ${sh.dialogue.map((d) => `<div class="dialogue">🗣️ <b>${esc(charName(d.character))}</b> <span class="muted">(${esc(d.emotion)})</span>: “${esc(d.line)}”</div>`).join("")}
-        ${sh.sound ? `<div class="muted">🔊 ${esc(sh.sound)}</div>` : ""}
-        ${promptBlock("Start frame", sh.start_frame_prompt)}
-        ${promptBlock("End frame", sh.end_frame_prompt)}
-        ${promptBlock("Video", sh.video_prompt)}
-      </div>`).join("")}`).join("")}
+      ${s.lighting ? `<p class="muted">💡 แสง: ${esc(s.lighting)}</p>` : ""}
+      ${hasGeo ? `<div class="scene-board">
+        <div><div class="sb-cap">ผังมุมกล้อง (มองจากด้านบน) — เส้นประ = เส้น 180°</div>${SB.planSVG(s, b, charName)}</div>
+        <div class="strip-wrap"><div class="sb-cap">สตอรี่บอร์ด — เรียงตามลำดับการตัดต่อ</div><div class="strip">${s.shots.map((sh) => `<div class="strip-item ${checks[s.scene_number][sh.shot_number] ? "warn" : ""}">
+          ${sh.camera ? SB.frameSVG(sh, b, charName, 96) : ""}<div>${s.scene_number}.${sh.shot_number}</div><div class="muted small">${esc(sh.shot_type)}</div></div>`).join("")}</div></div>
+      </div>
+      ${s.camera_side_note ? `<p class="muted small">🎥 ${esc(s.camera_side_note)}</p>` : ""}` : ""}
+      ${s.shots.map((sh) => {
+        const w = checks[s.scene_number][sh.shot_number];
+        return `<div class="shot ${w ? "warn" : ""}">
+        <div class="shot-head"><b>ช็อต ${s.scene_number}.${sh.shot_number}</b>
+        <span class="muted">· ${esc(sh.shot_type)}${sh.lens ? ` · ${esc(sh.lens)}` : ""}${sh.camera_angle ? ` · ${esc(sh.camera_angle)}` : ""} · ${esc(sh.camera_move)} · ${sh.duration_seconds}s · ${sh.characters.map(charName).map(esc).join(", ")}</span></div>
+        <div class="shot-body">
+          ${sh.camera ? `<div class="shot-visual">${SB.frameSVG(sh, b, charName, 150)}${SB.planSVG(s, b, charName, sh, 150)}</div>` : ""}
+          <div class="shot-text">
+            ${w ? w.map((x) => `<div class="warnline">⚠️ ${esc(x)}</div>`).join("") : ""}
+            <p>${esc(sh.action)}</p>
+            ${sh.dialogue.map((d) => `<div class="dialogue">🗣️ <b>${esc(charName(d.character))}</b> <span class="muted">(${esc(d.emotion)})</span>: “${esc(d.line)}”</div>`).join("")}
+            ${sh.cut_motivation ? `<div class="muted">✂️ เหตุผลที่ตัดมาช็อตนี้: ${esc(sh.cut_motivation)}</div>` : ""}
+            ${sh.crosses_axis ? `<div class="muted">↔️ ข้ามเส้นอย่างตั้งใจ: ${esc(sh.cross_reason)}</div>` : ""}
+            ${sh.continuity_notes ? `<div class="muted">🔗 ความต่อเนื่อง: ${esc(sh.continuity_notes)}</div>` : ""}
+            ${sh.sound ? `<div class="muted">🔊 ${esc(sh.sound)}</div>` : ""}
+            ${promptBlock("Start frame", sh.start_frame_prompt + neg)}
+            ${promptBlock("End frame", sh.end_frame_prompt + neg)}
+            ${promptBlock("Video", sh.video_prompt)}
+          </div>
+        </div>
+      </div>`;}).join("")}`).join("")}
   </div>`;
 
   $("copyAllVideo").onclick = () => copy(ep.scenes.flatMap((s) => s.shots.map((sh) =>
