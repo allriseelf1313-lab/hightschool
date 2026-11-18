@@ -12,37 +12,103 @@
     "id": "c1",
     "name": "มายา",
     "role": "นางเอก นักเรียนย้ายใหม่",
-    "age": "17",
+    "age": 17,
     "personality": "ช่างสังเกต พูดน้อย แต่ดื้อเงียบเมื่อสงสัยอะไร",
     "backstory": "ย้ายตามแม่มาอยู่บ้านยายหลังพ่อเสีย ชอบเขียนไดอารี่ด้วยปากกาหมึกซึม",
-    "appearance_prompt": "17-year-old girl, long wavy auburn hair, light freckles, round thin-frame glasses, slim build, wearing a navy fitted t-shirt, light-wash high-waist jeans, brown leather crossbody bag, white sneakers"
+    "gender": "หญิง",
+    "want": "หาความจริงเบื้องหลังจดหมาย",
+    "need": "ยอมรับว่าการสูญเสียพ่อไม่ใช่ความผิดของใคร",
+    "secret": "แอบอ่านไดอารี่เก่าของแม่ก่อนย้ายมา",
+    "flaw": "ดื้อเงียบ ไม่ยอมขอความช่วยเหลือ",
+    "arc": "จากคนเก็บตัว กลายเป็นคนกล้าเปิดใจกับคนอื่น",
+    "signature_color": "#c2410c",
+    "face_prompt": "17-year-old girl, oval face, long wavy auburn hair with a center part, light freckles across nose and cheeks, hazel eyes, round thin gold-frame glasses, slim build, fair skin",
+    "outfits": [
+     {
+      "id": "o1",
+      "name": "ชุดไปโรงเรียน",
+      "prompt": "navy fitted t-shirt, light-wash high-waist jeans, brown leather crossbody bag, white sneakers"
+     },
+     {
+      "id": "o2",
+      "name": "ชุดพละ",
+      "prompt": "grey school gym t-shirt, black track pants, white sneakers"
+     }
+    ]
    },
    {
     "id": "c2",
     "name": "ไทม์",
     "role": "พระเอก กัปตันทีมบาส",
-    "age": "18",
+    "age": 18,
     "personality": "ดูเย็นชา ขี้รำคาญ แต่จริงๆ ใส่ใจคนรอบตัวมาก",
     "backstory": "พี่ชายของเขาคือเพื่อนสนิทของรุ่นพี่ที่หายตัวไป เรื่องนี้จึงเป็นแผลในครอบครัว",
-    "appearance_prompt": "18-year-old boy, tall athletic build, messy dark brown hair, sharp jawline, dark eyes, wearing a black and white varsity jacket over a black t-shirt, dark jeans"
+    "gender": "ชาย",
+    "want": "ปกป้องพี่ชายจากเรื่องในอดีต",
+    "need": "ความจริงต้องถูกพูดถึงจึงจะหายเจ็บ",
+    "secret": "เคยเห็นพี่ชายเผากล่องจดหมายแต่เผาไม่หมด",
+    "flaw": "ปิดกั้นตัวเองด้วยความเย็นชา",
+    "arc": "จากคนปิดบังความจริง กลายเป็นคนช่วยเปิดเผยมัน",
+    "signature_color": "#0ea5e9",
+    "face_prompt": "18-year-old boy, tall athletic build, messy dark brown hair, sharp jawline, dark brown eyes, thick straight eyebrows, light tan skin, small scar on left eyebrow",
+    "outfits": [
+     {
+      "id": "o1",
+      "name": "แจ็กเก็ตทีมบาส",
+      "prompt": "black and white varsity jacket over black t-shirt, dark jeans, white high-top sneakers"
+     },
+     {
+      "id": "o2",
+      "name": "ชุดซ้อมบาส",
+      "prompt": "black sleeveless basketball jersey number 7, black shorts"
+     }
+    ]
    },
    {
     "id": "c3",
     "name": "เจน",
     "role": "เพื่อนสนิทคนแรกของมายา",
-    "age": "17",
+    "age": 17,
     "personality": "ร่าเริง ขี้เม้าท์ รู้ทุกข่าวในโรงเรียน",
     "backstory": "ประธานชมรมหนังสือพิมพ์โรงเรียน อยากทำข่าวใหญ่สักครั้ง",
-    "appearance_prompt": "17-year-old girl, shoulder-length straight black hair with bangs, bright smile, petite, wearing an oversized mustard cardigan over a white tee, plaid skirt, camera strap around neck"
+    "gender": "หญิง",
+    "want": "ทำข่าวใหญ่ให้ชมรม",
+    "need": "เพื่อนสำคัญกว่าข่าว",
+    "secret": "แอบส่งเรื่องของมายาให้หนังสือพิมพ์เมือง",
+    "flaw": "ปากไว",
+    "arc": "จากคนอยากดัง กลายเป็นเพื่อนที่ซื่อสัตย์",
+    "signature_color": "#eab308",
+    "face_prompt": "17-year-old girl, round face, shoulder-length straight black hair with blunt bangs, bright dark eyes, wide smile, petite build, warm beige skin",
+    "outfits": [
+     {
+      "id": "o1",
+      "name": "ชุดนักข่าว",
+      "prompt": "oversized mustard cardigan over white tee, plaid skirt, vintage film camera strap around neck"
+     }
+    ]
    },
    {
     "id": "c4",
     "name": "ครูอรุณ",
     "role": "ครูภารโรงประจำโรงเรียน",
-    "age": "58",
+    "age": 58,
     "personality": "ใจดี เงียบขรึม ดูเหมือนรู้อะไรมากกว่าที่พูด",
     "backstory": "ทำงานที่โรงเรียนนี้มา 30 ปี เป็นคนสุดท้ายที่เห็นรุ่นพี่ที่หายไป",
-    "appearance_prompt": "58-year-old man, grey short hair, kind tired eyes, light stubble, wearing a faded olive work jacket, keys ring on belt"
+    "gender": "ชาย",
+    "want": "ให้ความลับถูกฝังไว้",
+    "need": "ปลดภาระที่แบกมา 10 ปี",
+    "secret": "เป็นคนซ่อนกล่องจดหมายไว้ใต้พื้นเอง",
+    "flaw": "กลัวการเปลี่ยนแปลง",
+    "arc": "จากผู้เก็บความลับ กลายเป็นผู้ส่งต่อความจริง",
+    "signature_color": "#65a30d",
+    "face_prompt": "58-year-old man, grey short hair, kind tired eyes with crow's feet, light stubble, weathered skin, medium build",
+    "outfits": [
+     {
+      "id": "o1",
+      "name": "ชุดภารโรง",
+      "prompt": "faded olive work jacket, grey work trousers, ring of keys on belt"
+     }
+    ]
    }
   ],
   "locations": [
@@ -72,40 +138,190 @@
     "number": 1,
     "title": "จดหมายฉบับแรก",
     "synopsis": "วันแรกที่โรงเรียนใหม่ มายาถูกสั่งให้ไปเก็บลูกบาสในห้องเก็บของ และเจอกล่องจดหมายเก่าซ่อนใต้พื้นไม้ ไทม์เข้ามาเห็นพอดีและสั่งให้เธอทิ้งมัน",
-    "cliffhanger": "จดหมายฉบับล่างสุดจ่าหน้าถึง 'มายา' และลงวันที่เมื่อ 10 ปีก่อน"
+    "cliffhanger": "จดหมายฉบับล่างสุดจ่าหน้าถึง 'มายา' และลงวันที่เมื่อ 10 ปีก่อน",
+    "hook_open": "ลูกบาสกลิ้งมาหยุดตรงแผ่นไม้ที่ยกขึ้น เหมือนมีคนจงใจชี้ทาง",
+    "pov_character": "c1",
+    "threads": [
+     "t1",
+     "t2"
+    ]
    },
    {
     "number": 2,
     "title": "ชื่อที่ถูกลบ",
     "synopsis": "มายากับเจนค้นหนังสือรุ่นเก่า พบว่ารูปของรุ่นพี่คนหนึ่งถูกตัดออกทุกหน้า",
-    "cliffhanger": "ไทม์ยืนอยู่หลังประตูห้องชมรม ได้ยินทุกอย่าง"
+    "cliffhanger": "ไทม์ยืนอยู่หลังประตูห้องชมรม ได้ยินทุกอย่าง",
+    "hook_open": "หนังสือรุ่นหล่นเปิดหน้าที่รูปถูกตัดเป็นรู",
+    "pov_character": "c3",
+    "threads": [
+     "t1",
+     "t2"
+    ]
    },
    {
     "number": 3,
     "title": "คนที่จำได้",
     "synopsis": "ครูอรุณเล่าเรื่องคืนฝนตกที่รุ่นพี่หายไป แต่เรื่องเล่าไม่ตรงกับจดหมาย",
-    "cliffhanger": "มีจดหมายฉบับใหม่ถูกสอดไว้ในล็อกเกอร์ของมายา"
+    "cliffhanger": "มีจดหมายฉบับใหม่ถูกสอดไว้ในล็อกเกอร์ของมายา",
+    "hook_open": "เสียงฟ้าผ่า ไฟดับทั้งตึก ครูอรุณยืนอยู่ในความมืด",
+    "pov_character": "c1",
+    "threads": [
+     "t3",
+     "t1"
+    ]
    },
    {
     "number": 4,
     "title": "ความลับของพี่ชาย",
     "synopsis": "ไทม์ยอมเล่าว่าพี่ชายเขาเก็บความลับบางอย่างไว้ ทั้งสองเริ่มใกล้ชิดกัน",
-    "cliffhanger": "ลายมือในจดหมายฉบับใหม่เหมือนลายมือในไดอารี่ของมายา"
+    "cliffhanger": "ลายมือในจดหมายฉบับใหม่เหมือนลายมือในไดอารี่ของมายา",
+    "hook_open": "ไทม์ถือไฟแช็กอยู่หน้ากองกระดาษ",
+    "pov_character": "c2",
+    "threads": [
+     "t2",
+     "t1"
+    ]
    },
    {
     "number": 5,
     "title": "คืนฝนตก",
     "synopsis": "มายาจำลองคืนนั้นในโรงยิม และค้นพบห้องลับใต้อัฒจันทร์",
-    "cliffhanger": "ในห้องลับมีรูปถ่ายแม่ของมายาตอนสาวๆ"
+    "cliffhanger": "ในห้องลับมีรูปถ่ายแม่ของมายาตอนสาวๆ",
+    "hook_open": "มายายืนกลางโรงยิมตอนตีหนึ่ง",
+    "pov_character": "c1",
+    "threads": [
+     "t3",
+     "t1"
+    ]
    },
    {
     "number": 6,
     "title": "จดหมายฉบับสุดท้าย",
     "synopsis": "ความจริงเปิดเผย: รุ่นพี่ที่หายไปคือพ่อของมายา และจดหมายทั้งหมดเขียนถึงลูกที่ยังไม่เกิด",
-    "cliffhanger": "ไทม์ยื่นจดหมายฉบับหนึ่งให้มายา เป็นลายมือของเขาเอง"
+    "cliffhanger": "ไทม์ยื่นจดหมายฉบับหนึ่งให้มายา เป็นลายมือของเขาเอง",
+    "hook_open": "มายาเปิดจดหมายฉบับสุดท้าย น้ำตาหยด",
+    "pov_character": "c1",
+    "threads": [
+     "t1",
+     "t2"
+    ]
    }
   ],
-  "negative_prompt": "plastic or airbrushed skin, extra fingers, deformed hands, warped face, morphing, changing clothes, cartoon or 3D render look, text artifacts, oversaturated colors, duplicate people"
+  "negative_prompt": "plastic or airbrushed skin, extra fingers, deformed hands, warped face, morphing, changing clothes, cartoon or 3D render look, text artifacts, oversaturated colors, duplicate people",
+  "rating": "13+",
+  "threads": [
+   {
+    "id": "t1",
+    "question": "ใครเขียนจดหมายถึงมายาเมื่อ 10 ปีก่อน",
+    "setup_episode": 1,
+    "clues": [
+     {
+      "episode": 2,
+      "clue": "รูปรุ่นพี่ถูกตัดออกจากหนังสือรุ่น"
+     },
+     {
+      "episode": 4,
+      "clue": "ลายมือเหมือนในไดอารี่ของแม่"
+     },
+     {
+      "episode": 5,
+      "clue": "รูปแม่ในห้องลับ"
+     }
+    ],
+    "payoff_episode": 6,
+    "payoff": "พ่อของมายาเขียนถึงลูกที่ยังไม่เกิด"
+   },
+   {
+    "id": "t2",
+    "question": "ไทม์ซ่อนอะไรเกี่ยวกับพี่ชาย",
+    "setup_episode": 1,
+    "clues": [
+     {
+      "episode": 2,
+      "clue": "แอบฟังอยู่หลังประตู"
+     },
+     {
+      "episode": 4,
+      "clue": "ยอมเล่าเรื่องพี่ชายครึ่งเดียว"
+     }
+    ],
+    "payoff_episode": 6,
+    "payoff": "พี่ชายพยายามเผาจดหมาย ไทม์เก็บฉบับสุดท้ายไว้"
+   },
+   {
+    "id": "t3",
+    "question": "ครูอรุณรู้อะไรเรื่องคืนฝนตก",
+    "setup_episode": 3,
+    "clues": [
+     {
+      "episode": 3,
+      "clue": "เรื่องเล่าไม่ตรงกับจดหมาย"
+     },
+     {
+      "episode": 5,
+      "clue": "กุญแจห้องลับอยู่ที่พวงกุญแจของครู"
+     }
+    ],
+    "payoff_episode": 5,
+    "payoff": "ครูเป็นคนซ่อนกล่องเพื่อรอวันที่มายามา"
+   }
+  ],
+  "color_script": [
+   {
+    "episode": 1,
+    "mood": "อบอุ่นแต่โดดเดี่ยว",
+    "palette": [
+     "#e9a35b",
+     "#7a4b2a",
+     "#2c3e50"
+    ]
+   },
+   {
+    "episode": 2,
+    "mood": "สงสัย ลึกลับ",
+    "palette": [
+     "#c9a227",
+     "#3b4a5a",
+     "#1b1b2f"
+    ]
+   },
+   {
+    "episode": 3,
+    "mood": "เศร้า ฝนตก",
+    "palette": [
+     "#5b7c99",
+     "#2e3b4e",
+     "#b0bec5"
+    ]
+   },
+   {
+    "episode": 4,
+    "mood": "ใกล้ชิด อบอุ่น",
+    "palette": [
+     "#f4a261",
+     "#e76f51",
+     "#264653"
+    ]
+   },
+   {
+    "episode": 5,
+    "mood": "ตึงเครียด มืด",
+    "palette": [
+     "#1d3557",
+     "#457b9d",
+     "#e63946"
+    ]
+   },
+   {
+    "episode": 6,
+    "mood": "ปลดปล่อย สว่าง",
+    "palette": [
+     "#ffd6a5",
+     "#fdffb6",
+     "#caffbf"
+    ]
+   }
+  ]
  },
  "episodes": {
   "1": {
@@ -141,13 +357,15 @@
          "character": "c1",
          "x": 35,
          "y": 52,
-         "facing_deg": 90
+         "facing_deg": 90,
+         "posture": "standing"
         },
         {
          "character": "c2",
          "x": 62,
          "y": 44,
-         "facing_deg": 270
+         "facing_deg": 270,
+         "posture": "standing"
         }
        ],
        "frame_positions": [
@@ -172,11 +390,26 @@
        ],
        "action": "มายายืนกอดกระเป๋าริมสนาม มองไทม์กับเพื่อนเล่นบาสอยู่ไกลๆ",
        "dialogue": [],
-       "start_frame_prompt": "Establishing wide shot, 24mm lens, eye level, high school indoor basketball gym, polished wooden floor, warm low afternoon sun from tall windows on the left side of the gym, soft fill from the polished floor. On the left of frame: 17-year-old girl, long wavy auburn hair, light freckles, round thin-frame glasses, navy fitted t-shirt, light-wash high-waist jeans, brown leather crossbody bag, white sneakers, standing alone at the edge of the court, hugging her bag, looking right toward the game. On the right of frame in the far background: 18-year-old boy, tall athletic build, messy dark brown hair, sharp jawline, black and white varsity jacket over black t-shirt, dark jeans, dribbling a basketball, facing left, photorealistic, shot on ARRI Alexa Mini, natural skin texture, 35mm film grain, vertical 9:16",
-       "end_frame_prompt": "Slightly closer wide shot of the same gym and lighting, the girl (17-year-old girl, long wavy auburn hair, light freckles, round thin-frame glasses, navy fitted t-shirt, light-wash high-waist jeans, brown leather crossbody bag, white sneakers) still on the left of frame watching the game to the right, the boy (18-year-old boy, tall athletic build, messy dark brown hair, sharp jawline, black and white varsity jacket over black t-shirt, dark jeans) on the far right of frame mid-dribble, photorealistic, shot on ARRI Alexa Mini, natural skin texture, 35mm film grain, vertical 9:16",
+       "start_frame_prompt": "Establishing wide shot, 24mm lens, eye level, high school indoor basketball gym, polished wooden floor, warm low afternoon sun from tall windows on the left side of the gym, soft fill from the polished floor. On the left of frame: {c1}, standing alone at the edge of the court, hugging her bag, looking right toward the game. On the right of frame in the far background: {c2}, dribbling a basketball, facing left, photorealistic, shot on ARRI Alexa Mini, natural skin texture, 35mm film grain, vertical 9:16",
+       "end_frame_prompt": "Slightly closer wide shot of the same gym and lighting, the girl ({c1}) still on the left of frame watching the game to the right, the boy ({c2}) on the far right of frame mid-dribble, photorealistic, shot on ARRI Alexa Mini, natural skin texture, 35mm film grain, vertical 9:16",
        "video_prompt": "Slow dolly in toward the girl on the left, the boy dribbles in the background on the right, dust glows in the window light, she tightens her grip on her bag, calm lonely mood, sneakers squeaking",
        "duration_seconds": 8,
-       "sound": "เสียงรองเท้าเสียดสีพื้น ลูกบาสกระทบพื้น"
+       "sound": "เสียงรองเท้าเสียดสีพื้น ลูกบาสกระทบพื้น",
+       "depth_layers": {
+        "foreground": "เงาราวอัฒจันทร์เบลอด้านหน้า",
+        "midground": "มายายืนกอดกระเป๋า",
+        "background": "นักเรียนเล่นบาสใต้แสงหน้าต่าง"
+       },
+       "wardrobe": [
+        {
+         "character": "c1",
+         "outfit_id": "o1"
+        },
+        {
+         "character": "c2",
+         "outfit_id": "o1"
+        }
+       ]
       },
       {
        "shot_number": 2,
@@ -195,13 +428,15 @@
          "character": "c1",
          "x": 35,
          "y": 52,
-         "facing_deg": 90
+         "facing_deg": 90,
+         "posture": "standing"
         },
         {
          "character": "c2",
          "x": 46,
          "y": 50,
-         "facing_deg": 270
+         "facing_deg": 270,
+         "posture": "standing"
         }
        ],
        "frame_positions": [
@@ -229,14 +464,30 @@
         {
          "character": "c2",
          "line": "ขอคืนด้วย",
-         "emotion": "เรียบเฉย"
+         "emotion": "เรียบเฉย",
+         "subtext": "อย่ามายุ่งกับฉัน"
         }
        ],
-       "start_frame_prompt": "Medium two-shot, 35mm lens, slightly low angle, basketball gym, warm low afternoon sun from tall windows on the left side of the gym, soft fill from the polished floor. On the left of frame: 17-year-old girl, long wavy auburn hair, light freckles, round thin-frame glasses, navy fitted t-shirt, light-wash high-waist jeans, brown leather crossbody bag, white sneakers, holding an orange basketball in her right hand, looking right and up. On the right of frame: 18-year-old boy, tall athletic build, messy dark brown hair, sharp jawline, black and white varsity jacket over black t-shirt, dark jeans, standing close, looking left down at her with a cool expression, photorealistic, shot on ARRI Alexa Mini, natural skin texture, 35mm film grain, vertical 9:16",
+       "start_frame_prompt": "Medium two-shot, 35mm lens, slightly low angle, basketball gym, warm low afternoon sun from tall windows on the left side of the gym, soft fill from the polished floor. On the left of frame: {c1}, holding an orange basketball in her right hand, looking right and up. On the right of frame: {c2}, standing close, looking left down at her with a cool expression, photorealistic, shot on ARRI Alexa Mini, natural skin texture, 35mm film grain, vertical 9:16",
        "end_frame_prompt": "Same framing and light, the boy on the right of frame holds out his open hand toward the girl on the left, she hesitates holding the ball, photorealistic, shot on ARRI Alexa Mini, natural skin texture, 35mm film grain, vertical 9:16",
        "video_prompt": "Static camera, the boy on the right extends his hand, the girl on the left looks up at him and hesitates, subtle tension, no fast movement",
        "duration_seconds": 8,
-       "sound": "เสียงลูกบาสกลิ้ง เสียงหัวใจเต้นเบาๆ"
+       "sound": "เสียงลูกบาสกลิ้ง เสียงหัวใจเต้นเบาๆ",
+       "depth_layers": {
+        "foreground": "ลูกบาสในมือมายา",
+        "midground": "มายาและไทม์",
+        "background": "ห่วงบาสและหน้าต่างเรืองแสง"
+       },
+       "wardrobe": [
+        {
+         "character": "c1",
+         "outfit_id": "o1"
+        },
+        {
+         "character": "c2",
+         "outfit_id": "o1"
+        }
+       ]
       },
       {
        "shot_number": 3,
@@ -255,13 +506,15 @@
          "character": "c1",
          "x": 35,
          "y": 52,
-         "facing_deg": 90
+         "facing_deg": 90,
+         "posture": "standing"
         },
         {
          "character": "c2",
          "x": 46,
          "y": 50,
-         "facing_deg": 270
+         "facing_deg": 270,
+         "posture": "standing"
         }
        ],
        "frame_positions": [
@@ -289,14 +542,30 @@
         {
          "character": "c2",
          "line": "คนใหม่เหรอ... ระวังลูกหลงหน่อยนะ",
-         "emotion": "เย็นชา แต่แอบห่วง"
+         "emotion": "เย็นชา แต่แอบห่วง",
+         "subtext": "ฉันสังเกตเธออยู่ และเป็นห่วง"
         }
        ],
-       "start_frame_prompt": "Over-the-shoulder shot, 50mm lens, eye level, basketball gym, warm low afternoon sun from tall windows on the left side of the gym, soft fill from the polished floor. Foreground on the left edge of frame: back of the girl's head and shoulder (long wavy auburn hair, navy t-shirt), out of focus. Center of frame in focus: 18-year-old boy, tall athletic build, messy dark brown hair, sharp jawline, black and white varsity jacket over black t-shirt, dark jeans, facing the camera, looking slightly left at her, cool expression, photorealistic, shot on ARRI Alexa Mini, natural skin texture, 35mm film grain, vertical 9:16",
+       "start_frame_prompt": "Over-the-shoulder shot, 50mm lens, eye level, basketball gym, warm low afternoon sun from tall windows on the left side of the gym, soft fill from the polished floor. Foreground on the left edge of frame: back of the girl's head and shoulder (long wavy auburn hair, navy t-shirt), out of focus. Center of frame in focus: {c2}, facing the camera, looking slightly left at her, cool expression, photorealistic, shot on ARRI Alexa Mini, natural skin texture, 35mm film grain, vertical 9:16",
        "end_frame_prompt": "Same over-the-shoulder framing, the boy in the center gives a slight reluctant half-smile, the girl's shoulder still on the left edge, photorealistic, shot on ARRI Alexa Mini, natural skin texture, 35mm film grain, vertical 9:16",
        "video_prompt": "Static camera, the boy speaks a short line to the girl, his eyes soften for a moment, shallow depth of field, background players blurred",
        "duration_seconds": 8,
-       "sound": "บรรยากาศโรงยิมไกลๆ"
+       "sound": "บรรยากาศโรงยิมไกลๆ",
+       "depth_layers": {
+        "foreground": "ไหล่และผมของมายาเบลอ",
+        "midground": "หน้าไทม์",
+        "background": "ผู้เล่นคนอื่นเบลอ"
+       },
+       "wardrobe": [
+        {
+         "character": "c1",
+         "outfit_id": "o1"
+        },
+        {
+         "character": "c2",
+         "outfit_id": "o1"
+        }
+       ]
       },
       {
        "shot_number": 4,
@@ -315,13 +584,15 @@
          "character": "c1",
          "x": 35,
          "y": 52,
-         "facing_deg": 90
+         "facing_deg": 90,
+         "posture": "standing"
         },
         {
          "character": "c2",
          "x": 46,
          "y": 50,
-         "facing_deg": 270
+         "facing_deg": 270,
+         "posture": "standing"
         }
        ],
        "frame_positions": [
@@ -349,16 +620,39 @@
         {
          "character": "c1",
          "line": "อ๊ะ... ขอโทษค่ะ",
-         "emotion": "เขิน ตกใจ"
+         "emotion": "เขิน ตกใจ",
+         "subtext": "ทำไมใจเต้นแรงแบบนี้"
         }
        ],
-       "start_frame_prompt": "Reverse over-the-shoulder shot, 50mm lens, eye level, basketball gym, warm low afternoon sun from tall windows on the left side of the gym, soft fill from the polished floor. Foreground on the right edge of frame: back of the boy's shoulder in a black and white varsity jacket, out of focus. Center of frame in focus: 17-year-old girl, long wavy auburn hair, light freckles, round thin-frame glasses, navy fitted t-shirt, light-wash high-waist jeans, brown leather crossbody bag, white sneakers, facing the camera, looking slightly right at him, shy and flustered, holding an orange basketball, photorealistic, shot on ARRI Alexa Mini, natural skin texture, 35mm film grain, vertical 9:16",
+       "start_frame_prompt": "Reverse over-the-shoulder shot, 50mm lens, eye level, basketball gym, warm low afternoon sun from tall windows on the left side of the gym, soft fill from the polished floor. Foreground on the right edge of frame: back of the boy's shoulder in a black and white varsity jacket, out of focus. Center of frame in focus: {c1}, facing the camera, looking slightly right at him, shy and flustered, holding an orange basketball, photorealistic, shot on ARRI Alexa Mini, natural skin texture, 35mm film grain, vertical 9:16",
        "end_frame_prompt": "Same framing, the girl in the center holds the basketball out toward the right of frame, eyes lowered shyly, photorealistic, shot on ARRI Alexa Mini, natural skin texture, 35mm film grain, vertical 9:16",
        "video_prompt": "Static camera, the girl blinks, says a short apology and hands the ball toward the boy on the right edge, light flickers softly on her glasses",
        "duration_seconds": 8,
-       "sound": "เสียงเพื่อนตะโกนเรียกไทม์"
+       "sound": "เสียงเพื่อนตะโกนเรียกไทม์",
+       "depth_layers": {
+        "foreground": "ไหล่แจ็กเก็ตไทม์เบลอ",
+        "midground": "หน้ามายา",
+        "background": "หน้าต่างสว่างจ้า"
+       },
+       "wardrobe": [
+        {
+         "character": "c1",
+         "outfit_id": "o1"
+        },
+        {
+         "character": "c2",
+         "outfit_id": "o1"
+        }
+       ]
       }
-     ]
+     ],
+     "change_type": "relationship",
+     "what_changes": "มายากับไทม์เจอกันครั้งแรก เกิดความรู้สึกขัดแย้ง ทั้งห่างเหินและสนใจ",
+     "dramatic_irony": "",
+     "threads_touched": [
+      "t2"
+     ],
+     "music_cue": "เปียโนเบาๆ เหงาๆ ค่อยๆ มีจังหวะหัวใจเมื่อไทม์เข้ามาใกล้"
     },
     {
      "scene_number": 2,
@@ -389,7 +683,8 @@
          "character": "c1",
          "x": 60,
          "y": 50,
-         "facing_deg": 270
+         "facing_deg": 270,
+         "posture": "walking"
         }
        ],
        "frame_positions": [
@@ -408,11 +703,22 @@
        ],
        "action": "มายาเข็นรถลูกบาสเข้ามาจากประตูขวา เดินไปทางซ้าย เท้าสะดุดแผ่นไม้ที่ยกขึ้น",
        "dialogue": [],
-       "start_frame_prompt": "Wide shot, 24mm lens, eye level, old high school sports storage room, wooden shelves with basketballs and stacked mats, single hard sunbeam from a high narrow window behind and to the right, dust in the air, dark corners. On the right of frame: 17-year-old girl, long wavy auburn hair, light freckles, round thin-frame glasses, navy fitted t-shirt, light-wash high-waist jeans, brown leather crossbody bag, white sneakers, pushing a metal cart of basketballs, walking toward the left of frame, photorealistic, shot on ARRI Alexa Mini, natural skin texture, 35mm film grain, vertical 9:16",
+       "start_frame_prompt": "Wide shot, 24mm lens, eye level, old high school sports storage room, wooden shelves with basketballs and stacked mats, single hard sunbeam from a high narrow window behind and to the right, dust in the air, dark corners. On the right of frame: {c1}, pushing a metal cart of basketballs, walking toward the left of frame, photorealistic, shot on ARRI Alexa Mini, natural skin texture, 35mm film grain, vertical 9:16",
        "end_frame_prompt": "Same wide framing, the girl now near the center of frame, stumbling slightly on a raised floorboard, looking down, photorealistic, shot on ARRI Alexa Mini, natural skin texture, 35mm film grain, vertical 9:16",
        "video_prompt": "Handheld camera follows the girl walking from right to left pushing a squeaky cart through dust-filled sunbeams, her foot catches on a loose floorboard and she stops, eerie quiet",
        "duration_seconds": 8,
-       "sound": "ล้อรถเอี๊ยด ไม้ลั่นกึก"
+       "sound": "ล้อรถเอี๊ยด ไม้ลั่นกึก",
+       "depth_layers": {
+        "foreground": "ชั้นวางลูกบาสเบลอ",
+        "midground": "มายาเข็นรถ",
+        "background": "ลำแสงผ่านฝุ่น"
+       },
+       "wardrobe": [
+        {
+         "character": "c1",
+         "outfit_id": "o1"
+        }
+       ]
       },
       {
        "shot_number": 2,
@@ -431,7 +737,8 @@
          "character": "c1",
          "x": 40,
          "y": 42,
-         "facing_deg": 180
+         "facing_deg": 180,
+         "posture": "kneeling"
         }
        ],
        "frame_positions": [
@@ -453,14 +760,26 @@
         {
          "character": "c1",
          "line": "จดหมาย...?",
-         "emotion": "กระซิบ สงสัย"
+         "emotion": "กระซิบ สงสัย",
+         "subtext": ""
         }
        ],
-       "start_frame_prompt": "Extreme close-up, 50mm lens, high angle looking down, single hard sunbeam from a high narrow window behind and to the right, dust in the air, dark corners. Center of frame: the girl's hands (navy t-shirt sleeves) lifting a loose wooden floorboard to reveal a rusty tin box, her face with round glasses partly visible at the top of frame looking down, photorealistic, shot on ARRI Alexa Mini, natural skin texture, 35mm film grain, vertical 9:16",
+       "start_frame_prompt": "Extreme close-up, 50mm lens, high angle looking down, single hard sunbeam from a high narrow window behind and to the right, dust in the air, dark corners. Center of frame: {c1}, kneeling on the floor, seen from above, her hands lifting a loose wooden floorboard to reveal a rusty tin box, looking down, photorealistic, shot on ARRI Alexa Mini, natural skin texture, 35mm film grain, vertical 9:16",
        "end_frame_prompt": "Same high angle, the tin box open, stacks of faded yellow envelopes tied with a red ribbon, her fingertips touching them, sunbeam across the letters, photorealistic, shot on ARRI Alexa Mini, natural skin texture, 35mm film grain, vertical 9:16",
        "video_prompt": "Slow push-in from a high angle as her right hand lifts the floorboard and her left hand opens the rusty lid, a puff of dust rises into the sunbeam, single simple motion",
        "duration_seconds": 8,
-       "sound": "เสียงฝาสังกะสีครูดเบาๆ ดนตรีลึกลับ"
+       "sound": "เสียงฝาสังกะสีครูดเบาๆ ดนตรีลึกลับ",
+       "depth_layers": {
+        "foreground": "แผ่นไม้และกล่องสังกะสี",
+        "midground": "มือและหน้ามายา",
+        "background": "พื้นไม้มืด"
+       },
+       "wardrobe": [
+        {
+         "character": "c1",
+         "outfit_id": "o1"
+        }
+       ]
       },
       {
        "shot_number": 3,
@@ -479,13 +798,15 @@
          "character": "c1",
          "x": 40,
          "y": 42,
-         "facing_deg": 90
+         "facing_deg": 90,
+         "posture": "kneeling"
         },
         {
          "character": "c2",
          "x": 80,
          "y": 48,
-         "facing_deg": 270
+         "facing_deg": 270,
+         "posture": "standing"
         }
        ],
        "frame_positions": [
@@ -513,14 +834,30 @@
         {
          "character": "c2",
          "line": "วางมันลง แล้วอย่าบอกใครว่าเจอ",
-         "emotion": "เสียงต่ำ จริงจัง"
+         "emotion": "เสียงต่ำ จริงจัง",
+         "subtext": "ฉันกลัวว่าความจริงจะทำร้ายพี่ชาย"
         }
        ],
-       "start_frame_prompt": "Over-the-shoulder wide shot, 24mm lens, eye level, dusty sports storage room, single hard sunbeam from a high narrow window behind and to the right, dust in the air, dark corners. Foreground on the left of frame: the girl kneeling, back of her head and shoulder (long wavy auburn hair), holding yellow envelopes. Center-right of frame in the doorway: 18-year-old boy, tall athletic build, messy dark brown hair, sharp jawline, black and white varsity jacket over black t-shirt, dark jeans, leaning on the door frame, facing the camera, serious expression, backlit by hallway light, photorealistic, shot on ARRI Alexa Mini, natural skin texture, 35mm film grain, vertical 9:16",
+       "start_frame_prompt": "Over-the-shoulder wide shot, 24mm lens, eye level, dusty sports storage room, single hard sunbeam from a high narrow window behind and to the right, dust in the air, dark corners. Foreground on the left of frame: the girl kneeling, back of her head and shoulder (long wavy auburn hair), holding yellow envelopes. Center-right of frame in the doorway: {c2}, leaning on the door frame, facing the camera, serious expression, backlit by hallway light, photorealistic, shot on ARRI Alexa Mini, natural skin texture, 35mm film grain, vertical 9:16",
        "end_frame_prompt": "Same framing, the boy center-right has pushed off the door frame and taken one step forward, tense worried expression, photorealistic, shot on ARRI Alexa Mini, natural skin texture, 35mm film grain, vertical 9:16",
        "video_prompt": "Static camera, the boy center-right pushes off the doorframe and takes one slow step toward the girl in the foreground on the left, dust drifting between them, low ominous tone",
        "duration_seconds": 8,
-       "sound": "เสียงเท้าก้าวช้าๆ"
+       "sound": "เสียงเท้าก้าวช้าๆ",
+       "depth_layers": {
+        "foreground": "หลังมายาที่คุกเข่า",
+        "midground": "ไทม์ที่ประตู",
+        "background": "แสงไฟทางเดิน"
+       },
+       "wardrobe": [
+        {
+         "character": "c1",
+         "outfit_id": "o1"
+        },
+        {
+         "character": "c2",
+         "outfit_id": "o1"
+        }
+       ]
       },
       {
        "shot_number": 4,
@@ -539,13 +876,15 @@
          "character": "c1",
          "x": 40,
          "y": 42,
-         "facing_deg": 90
+         "facing_deg": 90,
+         "posture": "kneeling"
         },
         {
          "character": "c2",
          "x": 80,
          "y": 48,
-         "facing_deg": 270
+         "facing_deg": 270,
+         "posture": "standing"
         }
        ],
        "frame_positions": [
@@ -573,14 +912,30 @@
         {
          "character": "c1",
          "line": "ทำไมล่ะ นายรู้อะไรเหรอ",
-         "emotion": "ท้าทาย"
+         "emotion": "ท้าทาย",
+         "subtext": "ฉันจะไม่ยอมถอยง่ายๆ"
         }
        ],
-       "start_frame_prompt": "Reverse over-the-shoulder shot, 35mm lens, eye level, dusty storage room, single hard sunbeam from a high narrow window behind and to the right, dust in the air, dark corners. Foreground on the right edge of frame: back of the boy's shoulder in a black and white varsity jacket, out of focus. Center of frame: 17-year-old girl, long wavy auburn hair, light freckles, round thin-frame glasses, navy fitted t-shirt, light-wash high-waist jeans, brown leather crossbody bag, white sneakers, kneeling on the floor, facing the camera, holding yellow envelopes to her chest, defiant expression, photorealistic, shot on ARRI Alexa Mini, natural skin texture, 35mm film grain, vertical 9:16",
+       "start_frame_prompt": "Reverse over-the-shoulder shot, 35mm lens, eye level, dusty storage room, single hard sunbeam from a high narrow window behind and to the right, dust in the air, dark corners. Foreground on the right edge of frame: back of the boy's shoulder in a black and white varsity jacket, out of focus. Center of frame: {c1}, kneeling on the floor, facing the camera, holding yellow envelopes to her chest, defiant expression, photorealistic, shot on ARRI Alexa Mini, natural skin texture, 35mm film grain, vertical 9:16",
        "end_frame_prompt": "Same framing, the girl in the center lifts her chin defiantly, grip tightening on the envelopes, photorealistic, shot on ARRI Alexa Mini, natural skin texture, 35mm film grain, vertical 9:16",
        "video_prompt": "Static camera, the girl in the center answers back with a defiant look, the boy's blurred shoulder in the right foreground does not move, sunbeam flickers with dust",
        "duration_seconds": 8,
-       "sound": "เงียบ มีแค่เสียงลมผ่านหน้าต่าง"
+       "sound": "เงียบ มีแค่เสียงลมผ่านหน้าต่าง",
+       "depth_layers": {
+        "foreground": "ไหล่ไทม์เบลอ",
+        "midground": "มายาคุกเข่ากอดจดหมาย",
+        "background": "ชั้นวางของมืด"
+       },
+       "wardrobe": [
+        {
+         "character": "c1",
+         "outfit_id": "o1"
+        },
+        {
+         "character": "c2",
+         "outfit_id": "o1"
+        }
+       ]
       },
       {
        "shot_number": 5,
@@ -599,7 +954,8 @@
          "character": "c1",
          "x": 40,
          "y": 42,
-         "facing_deg": 180
+         "facing_deg": 180,
+         "posture": "kneeling"
         }
        ],
        "frame_positions": [
@@ -621,18 +977,40 @@
         {
          "character": "c1",
          "line": "ถึง... มายา?",
-         "emotion": "ตกตะลึง"
+         "emotion": "ตกตะลึง",
+         "subtext": ""
         }
        ],
-       "start_frame_prompt": "Insert close-up, 85mm lens, high angle, single hard sunbeam from a high narrow window behind and to the right, dust in the air, dark corners. Center of frame: a faded yellow envelope held in the girl's right hand, elegant fountain-pen handwriting reading 'To Maya', her glasses and freckles softly out of focus above, photorealistic, shot on ARRI Alexa Mini, natural skin texture, 35mm film grain, vertical 9:16",
+       "start_frame_prompt": "Insert close-up, 85mm lens, high angle, single hard sunbeam from a high narrow window behind and to the right, dust in the air, dark corners. Center of frame: a faded yellow envelope held in the girl's right hand, elegant fountain-pen handwriting reading 'To Maya', {c1} kneeling, softly out of focus above the envelope, photorealistic, shot on ARRI Alexa Mini, natural skin texture, 35mm film grain, vertical 9:16",
        "end_frame_prompt": "Extreme close-up of the envelope corner showing a handwritten date from ten years ago, her thumb trembling at the edge, dramatic sunbeam, photorealistic, shot on ARRI Alexa Mini, natural skin texture, 35mm film grain, vertical 9:16",
        "video_prompt": "Slow zoom into the envelope as she flips it over, the handwritten name comes into focus, then drift to the old date, her thumb trembles, music cuts to silence",
        "duration_seconds": 8,
-       "sound": "ดนตรีเงียบลงทันที"
+       "sound": "ดนตรีเงียบลงทันที",
+       "depth_layers": {
+        "foreground": "ขอบซองจดหมาย",
+        "midground": "ลายมือบนซอง",
+        "background": "หน้ามายาเบลอ"
+       },
+       "wardrobe": [
+        {
+         "character": "c1",
+         "outfit_id": "o1"
+        }
+       ]
       }
-     ]
+     ],
+     "change_type": "info",
+     "what_changes": "มายาพบจดหมายที่จ่าหน้าถึงตัวเอง และรู้ว่าไทม์รู้อะไรบางอย่าง",
+     "dramatic_irony": "คนดูเห็นสีหน้าตกใจของไทม์ตอนเห็นกล่อง ซึ่งมายาไม่ทันเห็น",
+     "threads_touched": [
+      "t1",
+      "t2"
+     ],
+     "music_cue": "เสียงซินธ์ทุ้มต่ำ เงียบสนิทตอนเห็นชื่อบนซอง"
     }
-   ]
+   ],
+   "pov_character": "c1",
+   "cold_open": "ลูกบาสกลิ้งเข้ามาหยุดที่เท้ามายา ราวกับมีใครจงใจส่งมา"
   }
  }
 }

@@ -19,6 +19,8 @@ const SB = (() => {
   };
 
   function colorOf(bible, id) {
+    const sig = bible.characters.find((c) => c.id === id)?.signature_color;
+    if (/^#[0-9a-f]{6}$/i.test(sig || "")) return sig;
     const i = bible.characters.findIndex((c) => c.id === id);
     return COLORS[(i < 0 ? 0 : i) % COLORS.length];
   }
@@ -62,11 +64,27 @@ const SB = (() => {
   const camDir = (s) => Math.atan2(s.camera.aim_y - s.camera.y, s.camera.aim_x - s.camera.x) * 180 / Math.PI;
 
   // Continuity checks for one scene. Returns { [shot_number]: [warning, ...] }
-  function check(scene, nameOf) {
+  function check(scene, nameOf, bible) {
     const out = {};
     const warn = (n, msg) => (out[n] ||= []).push(msg);
+    const first = scene.shots[0]?.shot_number ?? 1;
+    if ("what_changes" in scene && !String(scene.what_changes || "").trim())
+      warn(first, "ฉากนี้ไม่ได้เปลี่ยนอะไรในเรื่อง (ไม่มีข้อมูลใหม่/ความสัมพันธ์/เดิมพัน) อาจทำให้เรื่องยืด");
     let side = null, prev = null;
+    const outfitSeen = {};
     for (const shot of scene.shots) {
+      // wardrobe: every character on set wears a known outfit, and it does not change mid-scene
+      if (bible && shot.wardrobe) {
+        for (const p of shot.positions || []) {
+          const w = shot.wardrobe.find((x) => x.character === p.character);
+          const ch = bible.characters.find((c) => c.id === p.character);
+          if (!ch?.outfits) continue;
+          if (!w || !ch.outfits.some((o) => o.id === w.outfit_id)) { warn(shot.shot_number, `${nameOf(p.character)} ไม่ได้ระบุชุด หรือระบุชุดที่ไม่มีอยู่`); continue; }
+          if (outfitSeen[p.character] && outfitSeen[p.character] !== w.outfit_id)
+            warn(shot.shot_number, `${nameOf(p.character)} เปลี่ยนชุดกลางฉาก`);
+          outfitSeen[p.character] ||= w.outfit_id;
+        }
+      }
       if (!shot.camera || !shot.positions) continue;
       const s = axisSide(shot, scene.axis_characters);
       if (s) {
@@ -82,6 +100,9 @@ const SB = (() => {
         const claimed = (fp.frame_side || "").toLowerCase();
         if (claimed && claimed !== p.side && !(claimed === "center" || p.side === "center"))
           warn(shot.shot_number, `${nameOf(fp.character)}: บทบอกว่าอยู่ "${fp.frame_side}" แต่จากตำแหน่งกล้องจริงจะอยู่ "${p.side}"`);
+        // a visible face needs the locked description token in the start frame prompt
+        if (bible && p.looking !== "away" && "wardrobe" in shot && !String(shot.start_frame_prompt || "").includes(`{${fp.character}}`))
+          warn(shot.shot_number, `เห็นหน้า${nameOf(fp.character)} แต่พรอมต์ไม่มี {${fp.character}} จึงใส่หน้าตาที่ล็อกไว้ให้ไม่ได้`);
       }
       if (prev) {
         let diff = Math.abs(camDir(shot) - camDir(prev)) % 360; if (diff > 180) diff = 360 - diff;
@@ -92,6 +113,70 @@ const SB = (() => {
       prev = shot;
     }
     return out;
+  }
+
+  // Series-level checks: threads pay off inside the series, every episode has a colour script.
+  function checkBible(b) {
+    const out = [];
+    const n = b.episodes?.length || 0;
+    for (const t of b.threads || []) {
+      if (t.payoff_episode > n || t.payoff_episode < 1) out.push(`ปม "${t.question}" เฉลยตอนที่ ${t.payoff_episode} ซึ่งไม่มีอยู่ในซีรีส์`);
+      if (t.setup_episode > t.payoff_episode) out.push(`ปม "${t.question}" เฉลยก่อนจะเปิดปม`);
+    }
+    for (const e of b.episodes || [])
+      if (b.color_script && !b.color_script.some((c) => c.episode === e.number)) out.push(`EP${e.number} ยังไม่มีโทนสี`);
+    return out;
+  }
+
+  // Replace {c1} tokens with the locked face description + the outfit worn in this shot.
+  function expand(text, bible, shot) {
+    return String(text || "").replace(/\{(c\d+)\}/g, (m, id) => {
+      const ch = bible.characters.find((c) => c.id === id);
+      if (!ch) return m;
+      const face = ch.face_prompt || ch.appearance_prompt || ch.name;
+      const wid = shot?.wardrobe?.find((w) => w.character === id)?.outfit_id;
+      const outfit = (ch.outfits || []).find((o) => o.id === wid) || (ch.outfits || [])[0];
+      return outfit ? `${face}, wearing ${outfit.prompt}` : face;
+    });
+  }
+
+  // A simple body silhouette for each posture. Heights are in plan units (10 cm) above the floor.
+  function figure(p, cx, k, Y, col) {
+    const posture = String(p.posture || "standing").toLowerCase();
+    const dir = p.looking === "right" ? 1 : p.looking === "left" ? -1 : 0;
+    const rect = (x1, y1, x2, y2, r, op) =>
+      `<rect x="${Math.min(x1, x2)}" y="${Math.min(y1, y2)}" width="${Math.abs(x2 - x1)}" height="${Math.abs(y2 - y1)}" rx="${r}" fill="${col}" opacity="${op}"/>`;
+    const limb = (x1, y1, x2, y2, wd) => `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${col}" stroke-opacity=".55" stroke-width="${wd}" stroke-linecap="round"/>`;
+    const head = (x, hh) => `<circle cx="${x}" cy="${Y(hh)}" r="${1.25 * k}" fill="${col}"/>`;
+    const torso = (sh, hip) => rect(cx - 2.6 * k, Y(sh), cx + 2.6 * k, Y(hip), 1.4 * k, ".8");
+    let svg, headX = cx, headH;
+    if (posture.includes("lying")) {
+      const s = dir || 1;
+      headH = 1.3; headX = cx + s * 7.5 * k;
+      svg = rect(cx - s * 8 * k, Y(2.4), cx + s * 6 * k, Y(0.2), k, ".75") + head(headX, headH);
+    } else if (posture.includes("sit")) {
+      headH = 12.3;
+      svg = (dir ? limb(cx, Y(4.5), cx + dir * 4.5 * k, Y(4.5), 2.4 * k) + limb(cx + dir * 4.5 * k, Y(4.5), cx + dir * 4.5 * k, Y(0), 2 * k)
+                 : rect(cx - 2.4 * k, Y(4.5), cx + 2.4 * k, Y(0), k, ".55"))
+        + torso(10.5, 4.5) + head(cx, headH);
+    } else if (posture.includes("kneel")) {
+      headH = 12;
+      svg = rect(cx - 2.4 * k, Y(4.8), cx + 2.4 * k, Y(0), k, ".55")
+        + (dir ? limb(cx, Y(0.6), cx - dir * 3.5 * k, Y(0.6), 1.8 * k) : "")
+        + torso(10.3, 4.8) + head(cx, headH);
+    } else if (posture.includes("bend")) {
+      headH = 12.2; headX = cx + (dir || 0) * 3 * k;
+      svg = rect(cx - 2.4 * k, Y(8.5), cx + 2.4 * k, Y(0), k, ".55")
+        + `<path d="M${cx - 2.6 * k} ${Y(8.5)} L${cx + 2.6 * k} ${Y(8.5)} L${headX + 2.6 * k} ${Y(11)} L${headX - 2.6 * k} ${Y(11)}Z" fill="${col}" opacity=".8"/>`
+        + head(headX, headH);
+    } else {
+      headH = 16;
+      const spread = posture.includes("run") ? 2.6 : posture.includes("walk") ? 1.5 : 0;
+      svg = (spread ? limb(cx - 0.8 * k, Y(8.5), cx - spread * k, Y(0), 2 * k) + limb(cx + 0.8 * k, Y(8.5), cx + spread * k, Y(0), 2 * k)
+                    : rect(cx - 2.6 * k, Y(8.5), cx + 2.6 * k, Y(0), k, ".55"))
+        + torso(14.2, 8.5) + head(cx, headH);
+    }
+    return { svg, headX, headY: Y(headH) };
   }
 
   // ---------- SVG: what the camera sees (9:16 frame sketch) ----------
@@ -108,20 +193,18 @@ const SB = (() => {
     for (const p of people) {
       const cx = p.fx * w, k = p.scale * h; // pixels per plan unit at that depth
       const col = colorOf(bible, p.character);
-      const headY = y(16, p), shoulderY = y(14.2, p), hipY = y(8.5, p), footY = y(0, p);
       const back = p.looking === "away";
-      g += `<g opacity="${back ? 0.9 : 1}" style="${back ? "filter:brightness(.6)" : ""}">
-        <rect x="${cx - 2.6 * k}" y="${hipY}" width="${5.2 * k}" height="${footY - hipY}" rx="${k}" fill="${col}" opacity=".55"/>
-        <rect x="${cx - 2.6 * k}" y="${shoulderY}" width="${5.2 * k}" height="${hipY - shoulderY}" rx="${1.4 * k}" fill="${col}" opacity=".8"/>
-        <circle cx="${cx}" cy="${headY}" r="${1.25 * k}" fill="${col}"/>`;
+      const fig = figure(p, cx, k, (hh) => y(hh, p), col);
+      const headX = fig.headX, headY = fig.headY;
+      g += `<g opacity="${back ? 0.9 : 1}" style="${back ? "filter:brightness(.6)" : ""}">${fig.svg}`;
       if (p.looking === "left" || p.looking === "right") {
         const s = p.looking === "right" ? 1 : -1;
-        g += `<path d="M${cx + s * 1.1 * k} ${headY - 0.35 * k} L${cx + s * 1.9 * k} ${headY} L${cx + s * 1.1 * k} ${headY + 0.35 * k}Z" fill="#fff"/>`;
+        g += `<path d="M${headX + s * 1.1 * k} ${headY - 0.35 * k} L${headX + s * 1.9 * k} ${headY} L${headX + s * 1.1 * k} ${headY + 0.35 * k}Z" fill="#fff"/>`;
       } else if (p.looking === "toward camera") {
-        g += `<circle cx="${cx - 0.45 * k}" cy="${headY - 0.1 * k}" r="${0.18 * k}" fill="#111"/><circle cx="${cx + 0.45 * k}" cy="${headY - 0.1 * k}" r="${0.18 * k}" fill="#111"/>`;
+        g += `<circle cx="${headX - 0.45 * k}" cy="${headY - 0.1 * k}" r="${0.18 * k}" fill="#111"/><circle cx="${headX + 0.45 * k}" cy="${headY - 0.1 * k}" r="${0.18 * k}" fill="#111"/>`;
       }
       const ly = Math.min(Math.max(headY - 1.6 * k, 12), h - 6);
-      g += `<text x="${Math.min(Math.max(cx, 24), w - 24)}" y="${ly}" text-anchor="middle" class="sb-name">${nameOf(p.character)}</text></g>`;
+      g += `<text x="${Math.min(Math.max(headX, 24), w - 24)}" y="${ly}" text-anchor="middle" class="sb-name">${nameOf(p.character)}</text></g>`;
     }
     return `<svg class="sb-frame" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" role="img" aria-label="ภาพร่างเฟรม">
       <defs><clipPath id="${id}"><rect width="${w}" height="${h}" rx="6"/></clipPath></defs>
@@ -174,5 +257,5 @@ const SB = (() => {
       <svg x="0" y="0" width="${size}" height="${size}" overflow="hidden">${g}</svg></svg>`;
   }
 
-  return { project, check, frameSVG, planSVG };
+  return { project, check, checkBible, expand, frameSVG, planSVG };
 })();
