@@ -88,6 +88,9 @@ const EPISODE_SCHEMA = obj({
   scenes: arr(SCENE),
 });
 
+const SCHEMA_NAMES = new Map([[BIBLE_SCHEMA, "series bible"], [EPISODE_SCHEMA, "episode"], [SCENE, "scene"], [SHOT, "shot"]]);
+const schemaName = (schema) => SCHEMA_NAMES.get(schema) || "object";
+
 // ---------- prompts ----------
 const RATING_RULES = {
   "ทั่วไป": "General audience: no sexual content, romance up to holding hands and hugs, no graphic violence.",
@@ -162,13 +165,18 @@ Photorealism:
 - negative_prompt lists what to avoid: plastic skin, extra fingers, warped faces, morphing, changing
   clothes, cartoon look, text artifacts, oversaturated colours.`;
 
-async function generate(content, schema, maxTokens, effort = "medium") {
+// Structured outputs guarantee the JSON shape, but the API refuses schemas that compile to a grammar
+// that is too large (the episode script is). For those, ask for plain JSON with the schema in the
+// prompt, validate it here, and send any problems back for one correction pass.
+const looseSchemas = new Set();
+
+async function callModel(content, maxTokens, effort, format) {
   const stream = client.beta.messages.stream({
     model: MODEL,
     max_tokens: maxTokens,
     system: SYSTEM,
     thinking: { type: "adaptive" },
-    output_config: { effort, format: { type: "json_schema", schema } },
+    output_config: format ? { effort, format } : { effort },
     betas: ["server-side-fallback-2026-07-01"],
     fallbacks: "default", // re-runs on another model if a safety classifier declines
     messages: [{ role: "user", content }],
@@ -176,8 +184,99 @@ async function generate(content, schema, maxTokens, effort = "medium") {
   const message = await stream.finalMessage();
   if (message.stop_reason === "refusal") throw new Error("โมเดลปฏิเสธคำขอนี้ ลองปรับเนื้อเรื่องแล้วลองใหม่");
   if (message.stop_reason === "max_tokens") throw new Error("ผลลัพธ์ยาวเกินไป ลองลดจำนวนตอน/ฉากลง");
-  const text = message.content.filter((b) => b.type === "text").map((b) => b.text).join("");
-  return JSON.parse(text);
+  return message.content.filter((b) => b.type === "text").map((b) => b.text).join("");
+}
+
+const isGrammarTooLarge = (err) =>
+  err instanceof Anthropic.BadRequestError && /grammar|schema.*(large|complex)|too (large|complex)/i.test(err.message);
+
+async function generate(content, schema, maxTokens, effort = "medium") {
+  if (!looseSchemas.has(schema)) {
+    try {
+      return JSON.parse(await callModel(content, maxTokens, effort, { type: "json_schema", schema }));
+    } catch (err) {
+      if (!isGrammarTooLarge(err)) throw err;
+      console.log("Schema too large for structured outputs; using validated JSON mode instead.");
+      looseSchemas.add(schema);
+    }
+  }
+  return generateLoose(content, schema, maxTokens, effort);
+}
+
+function withInstruction(content, text) {
+  return typeof content === "string" ? `${content}\n\n${text}` : [...content, { type: "text", text }];
+}
+
+async function generateLoose(content, schema, maxTokens, effort) {
+  const instruction = `Schema name: ${schemaName(schema)}
+Reply with one JSON object only — no markdown fences, no commentary — that matches this JSON Schema
+exactly (every listed property present, no extra properties):
+${JSON.stringify(schema)}`;
+  let text = await callModel(withInstruction(content, instruction), maxTokens, effort);
+  for (let attempt = 0; ; attempt++) {
+    let value, errors;
+    try {
+      value = coerce(extractJSON(text), schema);
+      errors = validate(value, schema);
+    } catch (err) {
+      errors = [`invalid JSON: ${err.message}`];
+    }
+    if (!errors.length) return value;
+    if (attempt >= 1) throw new Error(`AI ตอบรูปแบบไม่ครบ (${errors.length} จุด) ลองกดใหม่อีกครั้ง`);
+    text = await callModel(withInstruction(content, `${instruction}
+
+Your previous reply had these problems:
+${errors.slice(0, 40).join("\n")}
+
+Previous reply:
+${text}
+
+Return the corrected JSON object only.`), maxTokens, effort);
+  }
+}
+
+function extractJSON(text) {
+  const t = text.replace(/^\s*```(?:json)?/i, "").replace(/```\s*$/, "");
+  const a = t.indexOf("{"), z = t.lastIndexOf("}");
+  if (a < 0 || z < a) throw new Error("no JSON object found");
+  return JSON.parse(t.slice(a, z + 1));
+}
+
+// Fix harmless type slips (numbers sent as strings and the like) before validating.
+function coerce(v, s) {
+  if (s.type === "object" && v && typeof v === "object" && !Array.isArray(v)) {
+    const out = {};
+    for (const k of Object.keys(s.properties)) if (k in v) out[k] = coerce(v[k], s.properties[k]);
+    return out; // extra properties dropped
+  }
+  if (s.type === "array" && Array.isArray(v)) return v.map((x) => coerce(x, s.items));
+  if ((s.type === "number" || s.type === "integer") && typeof v === "string" && v.trim() !== "" && !isNaN(+v))
+    return s.type === "integer" ? Math.round(+v) : +v;
+  if (s.type === "integer" && typeof v === "number") return Math.round(v);
+  if (s.type === "string" && (typeof v === "number" || typeof v === "boolean")) return String(v);
+  if (s.type === "string" && v == null) return "";
+  if (s.type === "boolean" && typeof v === "string") return v === "true";
+  return v;
+}
+
+function validate(v, s, at = "$") {
+  const errs = [];
+  const t = s.type;
+  if (t === "object") {
+    if (!v || typeof v !== "object" || Array.isArray(v)) return [`${at}: expected object`];
+    for (const k of s.required) {
+      if (!(k in v)) errs.push(`${at}.${k}: missing`);
+      else errs.push(...validate(v[k], s.properties[k], `${at}.${k}`));
+    }
+  } else if (t === "array") {
+    if (!Array.isArray(v)) return [`${at}: expected array`];
+    v.forEach((x, i) => errs.push(...validate(x, s.items, `${at}[${i}]`)));
+  } else if (t === "integer") {
+    if (!Number.isInteger(v)) errs.push(`${at}: expected integer`);
+  } else if (t === "number") {
+    if (typeof v !== "number" || !isFinite(v)) errs.push(`${at}: expected number`);
+  } else if (typeof v !== t) errs.push(`${at}: expected ${t}`);
+  return errs;
 }
 
 // ---------- helpers ----------
