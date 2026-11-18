@@ -65,6 +65,14 @@ $("btnBible").onclick = async () => {
   finally { loading(false); }
 };
 
+$("btnSample").onclick = async () => {
+  try {
+    const data = await (await fetch("sample.json")).json();
+    Object.assign(state, data); save(); renderBible(); renderEpisode(1);
+    $("bibleView").scrollIntoView({ behavior: "smooth" });
+  } catch { toast("โหลดตัวอย่างไม่ได้"); }
+};
+
 function renderBible() {
   const b = state.bible;
   if (!b) return;
