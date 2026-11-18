@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI Drama Studio</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <h1>🎬 AI Drama Studio</h1>
+  <p>ไอเดีย → ไบเบิลซีรีส์ → บทถ่ายทำ + พรอมต์ภาพ/วิดีโอ สำหรับ Flow / Veo</p>
+</header>
+
+<main>
+  <section class="card" id="step1">
+    <h2>1. ไอเดียเรื่อง</h2>
+    <label>เรื่องย่อ / ไอเดีย
+      <textarea id="idea" rows="4" placeholder="เช่น เด็กสาวมัธยมย้ายมาโรงเรียนใหม่ แล้วพบว่าห้องเก็บอุปกรณ์กีฬามีจดหมายลึกลับจากรุ่นพี่ที่หายตัวไปเมื่อ 10 ปีก่อน"></textarea>
+    </label>
+    <div class="row">
+      <label>แนว
+        <input id="genre" placeholder="รักวัยรุ่น, ลึกลับ, ดราม่า...">
+      </label>
+      <label>จำนวนตอน
+        <input id="episodes" type="number" min="1" max="20" value="6">
+      </label>
+    </div>
+    <label>สไตล์ภาพ
+      <input id="style" value="cinematic photorealistic, American high school, warm natural light, 9:16 vertical">
+    </label>
+    <button id="btnBible">✨ สร้างไบเบิลซีรีส์</button>
+  </section>
+
+  <section id="bibleView" hidden></section>
+  <section id="episodeView" hidden></section>
+</main>
+
+<div id="loading" hidden><div class="spinner"></div><p id="loadingText">กำลังเขียน...</p></div>
+<div id="toast" hidden></div>
+
+<script src="app.js"></script>
+</body>
+</html>

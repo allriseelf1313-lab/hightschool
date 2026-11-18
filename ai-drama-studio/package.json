@@ -1,0 +1,17 @@
+{
+  "name": "ai-drama-studio",
+  "version": "1.0.0",
+  "description": "AI Drama Studio - สร้างละคร AI: ไอเดีย → ไบเบิลซีรีส์ → บทถ่ายทำ + พรอมต์ภาพ/วิดีโอ",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.10.0",
+    "express": "^5.3.0"
+  },
+  "type": "module"
+}
