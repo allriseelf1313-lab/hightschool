@@ -116,14 +116,14 @@ function download(name, text, type = "text/plain") {
 // The server never needs the reference images or the lock flags; they stay in the browser.
 function serverBible() {
   const b = structuredClone(state.bible);
-  for (const c of b.characters) { delete c.ref_image; delete c.locked; }
+  for (const c of b.characters) { delete c.ref_image; delete c.locked; delete c.flow_name; }
   return b;
 }
 const lockedIds = () => state.bible.characters.filter((c) => c.locked).map((c) => c.id);
 function reattachLocal(newBible) {
   for (const c of newBible.characters) {
     const old = state.bible?.characters.find((o) => o.id === c.id);
-    if (old) { c.ref_image = old.ref_image; c.locked = old.locked; }
+    if (old) { c.ref_image = old.ref_image; c.locked = old.locked; c.flow_name = old.flow_name; }
   }
   return newBible;
 }
@@ -268,6 +268,10 @@ save();
 })();
   }));
   v.querySelectorAll("[data-upload]").forEach((inp) => (inp.onchange = () => uploadRef(inp.dataset.upload, inp.files[0])));
+  v.querySelectorAll("[data-flowname]").forEach((inp) => (inp.onchange = () => {
+    b.characters.find((x) => x.id === inp.dataset.flowname).flow_name = inp.value.trim();
+    save(); if (!$("episodeView").hidden && currentEp) renderEpisode(currentEp);
+  }));
   v.querySelectorAll("[data-describe]").forEach((btn) => (btn.onclick = () => describeChar(btn.dataset.describe)));
   $("btnReviseBible").onclick = reviseBible;
   $("dlJson").onclick = () => download(`${b.title_en || "drama"}.json`, JSON.stringify(state, null, 1), "application/json");
@@ -290,6 +294,7 @@ function charCard(c, b) {
       ${c.want ? `<p>🎯 <b>อยากได้:</b> ${esc(c.want)}</p><p>💡 <b>สิ่งที่ต้องเรียนรู้:</b> ${esc(c.need)}</p>
       <p>🤫 <b>ความลับ:</b> ${esc(c.secret)}</p><p>⚡ <b>จุดอ่อน:</b> ${esc(c.flaw)}</p><p>📈 <b>การเปลี่ยนแปลง:</b> ${esc(c.arc)}</p>` : ""}
     </details>
+    <label class="flowname">ชื่อตัวละครนี้ใน Flow <input data-flowname="${c.id}" value="${esc(c.flow_name || "")}" placeholder="เช่น Pond"></label>
     <div class="toolbar small-gap">
       <label class="ghost filebtn">📷 ${c.ref_image ? "เปลี่ยนภาพ" : "อัปโหลดภาพอ้างอิง"}<input type="file" accept="image/*" data-upload="${c.id}" hidden></label>
       ${c.ref_image ? `<button class="ghost" data-describe="${c.id}">🔍 อ่านหน้าตาจากภาพ</button>` : ""}
@@ -435,19 +440,25 @@ function renderEpisode(n) {
     <div class="toolbar">
       <button class="ghost" id="copyAllVideo">📋 คัดลอกพรอมต์วิดีโอทั้งตอน</button>
       <button class="ghost" id="dlSrt">⬇️ ซับไทย (.srt)</button>
+      <button class="ghost" id="btnActing">🎭 เพิ่มอารมณ์ทั้งตอน${shots.some((x) => x.acting) ? " (ทำแล้ว)" : ""}</button>
       <button class="ghost" id="regen">🔄 เขียนตอนนี้ใหม่ทั้งหมด</button>
     </div>
     ${ep.scenes.map((s) => sceneHTML(s, checks[s.scene_number], hasGeo)).join("")}
   </div>`;
 
   $("copyAllVideo").onclick = () => copy(ep.scenes.flatMap((s) => s.shots.map((sh) =>
-    `[${s.scene_number}.${sh.shot_number}] ${sh.video_prompt}`)).join("\n\n"));
+    `[${s.scene_number}.${sh.shot_number}] ${SB.flowVideo(sh.video_prompt, sh)}`)).join("\n\n"));
   $("dlSrt").onclick = () => download(`EP${ep.episode_number}.srt`, toSRT(ep));
   $("regen").onclick = () => {
     if (!confirm(`เขียน EP${n} ใหม่ทั้งตอน? บทปัจจุบันจะถูกแทนที่ (มีสำรองไว้) และเสียค่าใช้จ่ายเท่าการเขียนตอนใหม่`)) return;
     save(true); delete state.episodes[n]; openEpisode(n, $("regen"));
   };
   $("btnReviseEp").onclick = () => reviseEpisode(n);
+  $("btnActing").onclick = () => {
+    if (!confirm("ให้ AI เขียนการแสดงและพรอมต์วิดีโอใหม่ทุกช็อตของตอนนี้?\nบท มุมกล้อง และภาพ Start เดิมไม่เปลี่ยน\nค่าใช้จ่ายประมาณ $0.1–0.4 (ถูกกว่าเขียนตอนใหม่มาก)")) return;
+    save(true);
+    runJob("acting", { bible: serverBible(), episode: state.episodes[n] }, { n });
+  };
   v.querySelectorAll("[data-reshot]").forEach((btn) => (btn.onclick = () => reshoot(n, btn.dataset.reshot)));
   v.querySelectorAll("[data-edit]").forEach((btn) => (btn.onclick = () => { editing = btn.dataset.edit; renderEpisode(n); }));
   v.querySelectorAll("[data-save]").forEach((btn) => (btn.onclick = () => saveEdit(n, btn.dataset.save)));
@@ -481,7 +492,7 @@ function refsFor(sh) {
     if (!c) return "";
     const oid = sh.wardrobe?.find((w) => w.character === id)?.outfit_id;
     const outfit = c.outfits?.find((o) => o.id === oid);
-    return `<span class="refchip">${c.ref_image ? `<img src="${c.ref_image}" alt="">` : "👤"} ${esc(c.name)}${outfit ? ` <span class="muted">(${esc(outfit.name)})</span>` : ""}</span>`;
+    return `<span class="refchip">${c.ref_image ? `<img src="${c.ref_image}" alt="">` : "👤"} ${esc(c.flow_name || c.name)}${outfit ? ` <span class="muted">(${esc(outfit.name)})</span>` : ""}</span>`;
   }).join("");
 }
 
@@ -495,6 +506,7 @@ function shotHTML(s, sh, warns) {
     <label>สิ่งที่เกิดขึ้น<textarea data-f="action" rows="2">${esc(sh.action)}</textarea></label>
     ${sh.dialogue.map((d, i) => `<label>🗣️ ${esc(charName(d.character))}<input data-f="line-${i}" value="${esc(d.line)}"></label>
       <label class="muted small">ความหมายแฝง<input data-f="sub-${i}" value="${esc(d.subtext || "")}"></label>`).join("")}
+    <label>🎭 การแสดง (ภาษาอังกฤษ)<textarea data-f="acting" rows="2">${esc(sh.acting || "")}</textarea></label>
     <label>Start frame <span class="muted small">(ใช้ {c1} แทนหน้าตาตัวละคร)</span><textarea data-f="start_frame_prompt" rows="4">${esc(sh.start_frame_prompt)}</textarea></label>
     <label>End frame<textarea data-f="end_frame_prompt" rows="3">${esc(sh.end_frame_prompt)}</textarea></label>
     <label>Video<textarea data-f="video_prompt" rows="3">${esc(sh.video_prompt)}</textarea></label>
@@ -508,6 +520,7 @@ function shotHTML(s, sh, warns) {
         <p>${esc(sh.action)}</p>
         ${sh.dialogue.map((d) => `<div class="dialogue">🗣️ <b>${esc(charName(d.character))}</b> <span class="muted">(${esc(d.emotion)})</span>: “${esc(d.line)}”
           ${d.subtext ? `<div class="muted small">💭 ความหมายแฝง: ${esc(d.subtext)}</div>` : ""}</div>`).join("")}
+        ${sh.acting ? `<div class="acting">🎭 <b>การแสดง:</b> ${esc(sh.acting)}</div>` : ""}
         ${sh.depth_layers ? `<div class="muted small">🔭 มิติภาพ — หน้า: ${esc(sh.depth_layers.foreground)} · กลาง: ${esc(sh.depth_layers.midground)} · หลัง: ${esc(sh.depth_layers.background)}</div>` : ""}
         ${sh.cut_motivation ? `<div class="muted">✂️ เหตุผลที่ตัดมาช็อตนี้: ${esc(sh.cut_motivation)}</div>` : ""}
         ${sh.crosses_axis ? `<div class="muted">↔️ ข้ามเส้นอย่างตั้งใจ: ${esc(sh.cross_reason)}</div>` : ""}
@@ -515,8 +528,8 @@ function shotHTML(s, sh, warns) {
         ${sh.sound ? `<div class="muted">🔊 ${esc(sh.sound)}</div>` : ""}
         ${refsFor(sh) ? `<div class="refs">📎 แนบภาพอ้างอิงใน Flow: ${refsFor(sh)}</div>` : ""}
         ${promptBlock("Start frame", SB.expand(sh.start_frame_prompt, b, sh) + neg())}
-        ${promptBlock("End frame", SB.expand(sh.end_frame_prompt, b, sh) + neg())}
-        ${promptBlock("Video", sh.video_prompt)}
+        ${promptBlock("End frame", SB.flowEnd(SB.expand(sh.end_frame_prompt, b, sh, true)) + neg())}
+        ${promptBlock("Video", SB.flowVideo(sh.video_prompt, sh))}
         <div class="revise small-gap"><input id="ins-${key}" placeholder="สั่งแก้ช็อตนี้ (ไม่ใส่ก็ได้) เช่น มุมต่ำกว่านี้">
           <button class="ghost" data-reshot="${key}">🔄 เขียนช็อตนี้ใหม่</button><button class="ghost" data-edit="${key}">✏️ แก้เอง</button></div>
       </div>
@@ -559,6 +572,17 @@ function reviseEpisode(n) {
   save(true);
   runJob("revise-episode", { bible: serverBible(), episode: state.episodes[n], instruction }, { n });
 }
+APPLY.acting = (r, { n }) => {
+  const ep = state.episodes[n];
+  let count = 0;
+  for (const x of r.shots || []) {
+    const sh = ep.scenes.find((s) => s.scene_number === x.scene_number)?.shots.find((s) => s.shot_number === x.shot_number);
+    if (!sh) continue;
+    Object.assign(sh, { acting: x.acting, end_frame_prompt: x.end_frame_prompt, video_prompt: x.video_prompt }); count++;
+  }
+  save(true); renderEpisode(n);
+  setTimeout(() => toast(`เพิ่มอารมณ์แล้ว ${count} ช็อต 🎭`, 4000), 4100);
+};
 APPLY["revise-episode"] = (r, { n }) => {
   state.episodes[n] = r.episode; state.reviews[n] = r.review; save(true); renderEpisode(n);
 };
@@ -602,7 +626,7 @@ function toMarkdown() {
       for (const sh of s.shots) {
         md += `\n**ช็อต ${s.scene_number}.${sh.shot_number}** (${sh.shot_type}, ${sh.lens || ""}, ${sh.camera_move}, ${sh.duration_seconds}s)\n${sh.action}\n`;
         for (const d of sh.dialogue) md += `- ${charName(d.character)} (${d.emotion}): "${d.line}"${d.subtext ? ` — 💭 ${d.subtext}` : ""}\n`;
-        md += `\n- Start: \`${SB.expand(sh.start_frame_prompt, b, sh)}\`\n- End: \`${SB.expand(sh.end_frame_prompt, b, sh)}\`\n- Video: \`${sh.video_prompt}\`\n`;
+        md += `\n- Start: \`${SB.expand(sh.start_frame_prompt, b, sh)}\`\n- End: \`${SB.flowEnd(SB.expand(sh.end_frame_prompt, b, sh, true))}\`\n- Video: \`${SB.flowVideo(sh.video_prompt, sh)}\`\n`;
       }
     }
   }

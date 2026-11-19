@@ -129,10 +129,12 @@ const SB = (() => {
   }
 
   // Replace {c1} tokens with the locked face description + the outfit worn in this shot.
-  function expand(text, bible, shot) {
+  // short = just the name: used in end frames, which edit a picture that already shows the face.
+  function expand(text, bible, shot, short = false) {
     return String(text || "").replace(/\{(c\d+)\}/g, (m, id) => {
       const ch = bible.characters.find((c) => c.id === id);
       if (!ch) return m;
+      if (short) return ch.flow_name || ch.name;
       const face = ch.face_prompt || ch.appearance_prompt || ch.name;
       const wid = shot?.wardrobe?.find((w) => w.character === id)?.outfit_id;
       const outfit = (ch.outfits || []).find((o) => o.id === wid) || (ch.outfits || [])[0];
@@ -257,5 +259,29 @@ const SB = (() => {
       <svg x="0" y="0" width="${size}" height="${size}" overflow="hidden">${g}</svg></svg>`;
   }
 
-  return { project, check, checkBible, expand, frameSVG, planSVG };
+  // Free, automatic fixes applied when prompts are shown or copied (old episodes included):
+  // the end frame becomes an edit of the start frame so the clip does not jump to another place,
+  // and the video prompt asks for one continuous shot at real-time speed with visible acting.
+  const EDIT_PREFIX = "Edit the start frame image. Keep everything the same: same location, same background, same props in the same places, same clothes, same camera angle and framing. Only change the pose and expression as follows: ";
+  function flowEnd(text) {
+    const t = String(text || "").trim();
+    return /^edit the start frame/i.test(t) ? t : EDIT_PREFIX + t;
+  }
+  function flowVideo(text, shot) {
+    let t = String(text || "")
+      .replace(/\bvery slow(ly)?\b,?\s*/gi, "")
+      .replace(/\bno lip movement\b,?\s*/gi, "")
+      .replace(/,?\s*\bsingle simple motion\b/gi, "")
+      .replace(/\s{2,}/g, " ").replace(/^[,\s]+/, "").trim();
+    t = t.replace(/[,\s]+$/, "");
+    if (t) t = t[0].toUpperCase() + t.slice(1) + (/[.!?]$/.test(t) ? "" : ".");
+    const add = [];
+    if (!/continuous shot/i.test(t)) add.push("One continuous shot, no scene change, same location the whole time.");
+    if (!/real-time/i.test(t)) add.push("Natural real-time speed, not slow motion.");
+    if (!/acting:/i.test(t)) add.push(shot?.acting ? `Acting: ${shot.acting}`
+      : "Acting: clear, visible emotion that fits the moment: expressive eyes and brows, visible breathing, blinking, micro-expressions, natural hand gestures.");
+    return [t, ...add].join(" ");
+  }
+
+  return { project, check, checkBible, expand, flowEnd, flowVideo, frameSVG, planSVG };
 })();

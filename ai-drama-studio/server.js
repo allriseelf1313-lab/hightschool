@@ -79,6 +79,7 @@ const SHOT = obj({
   characters: arr(str),
   action: str,
   dialogue: arr(obj({ character: str, line: str, emotion: str, subtext: str })),
+  acting: str, // English: 2-3 emotional beats with visible expressions and body language
   start_frame_prompt: str, end_frame_prompt: str, video_prompt: str,
   duration_seconds: int, sound: str,
 });
@@ -112,7 +113,12 @@ const EPISODE_PLAN = obj({
   })),
 });
 
-const SCHEMA_NAMES = new Map([[BIBLE_SCHEMA, "series bible"], [EPISODE_SCHEMA, "episode"], [EPISODE_PLAN, "episode plan"], [SCENE, "scene"], [SHOT, "shot"]]);
+
+
+const ACTING_SCHEMA = obj({
+  shots: arr(obj({ scene_number: int, shot_number: int, acting: str, end_frame_prompt: str, video_prompt: str })),
+});
+const SCHEMA_NAMES = new Map([[BIBLE_SCHEMA, "series bible"], [EPISODE_SCHEMA, "episode"], [EPISODE_PLAN, "episode plan"], [SCENE, "scene"], [SHOT, "shot"], [ACTING_SCHEMA, "acting"]]);
 const schemaName = (schema) => SCHEMA_NAMES.get(schema) || "object";
 
 // ---------- prompts ----------
@@ -184,8 +190,22 @@ Visual depth & colour:
 Photorealism:
 - Name a real camera and lens ("shot on ARRI Alexa Mini, 50mm prime, f/2"), practical light, natural
   skin texture with pores, real fabric wrinkles, believable hands.
-- One clear action per 8-second clip, slow-to-moderate motion, no whip pans, no crowds doing complex
-  actions, no long on-screen text, no fast hand manipulation. Camera moves must be physically possible.
+- No whip pans, no crowds doing complex actions, no long on-screen text, no fast hand manipulation.
+  Camera moves must be physically possible.
+
+Acting & motion — alive, never slow and empty:
+- People move at natural real-time human speed. Use slow motion only for a single deliberate dramatic
+  beat, and say so; never write "very slow" or "no lip movement" as a default.
+- Every shot has acting: 2-3 emotional beats inside the 8 seconds (e.g. freezes -> flinches -> forces a
+  calm face), shown through eyes, brows, mouth, breathing, blinking, hands, shoulders and posture. Write
+  them in acting, and put the same beats in the video_prompt.
+- Match the camera's energy to the emotion: subtle handheld for tension, steady slow push for sadness.
+
+Start and end frames must belong to one continuous shot:
+- end_frame_prompt is written as an edit of the start frame: begin with "Edit the start frame image.
+  Keep everything the same (same location, background, props in the same places, clothes, camera angle
+  and framing). Only change:" and then describe only the new pose and expression.
+- video_prompt describes one continuous shot with no scene change from the start frame to the end frame.
 - negative_prompt lists what to avoid: plastic skin, extra fingers, warped faces, morphing, changing
   clothes, cartoon look, text artifacts, oversaturated colours.`;
 
@@ -290,7 +310,13 @@ function extractJSON(text) {
 function coerce(v, s) {
   if (s.type === "object" && v && typeof v === "object" && !Array.isArray(v)) {
     const out = {};
-    for (const k of Object.keys(s.properties)) if (k in v) out[k] = coerce(v[k], s.properties[k]);
+    for (const [k, ps] of Object.entries(s.properties)) {
+      if (k in v) out[k] = coerce(v[k], ps);
+      // a missing text, list or flag is not worth failing a whole episode over
+      else if (ps.type === "string") out[k] = "";
+      else if (ps.type === "array") out[k] = [];
+      else if (ps.type === "boolean") out[k] = false;
+    }
     return out; // extra properties dropped
   }
   if (s.type === "array" && Array.isArray(v)) return v.map((x) => coerce(x, s.items));
@@ -523,6 +549,30 @@ ${problems.length ? `Your previous attempt had these problems, fix them:\n${prob
       if (!problems.length || ctx.eco) break;
     }
     return { shot, warnings: problems };
+  },
+
+  // Rewrites only the acting, end frames and video prompts of an existing episode: far cheaper than
+  // writing the episode again, and blocking, dialogue and start frames stay exactly as they were.
+  async acting(ctx, { bible, episode }) {
+    if (!bible || !episode) throw new BadRequest("ไม่พบบทตอนนี้");
+    progress(ctx, "กำลังเขียนการแสดงและพรอมต์วิดีโอใหม่ทุกช็อต…");
+    const brief = episode.scenes.map((s) => ({
+      scene_number: s.scene_number, summary: s.summary, lighting: s.lighting,
+      shots: s.shots.map((sh) => ({ shot_number: sh.shot_number, shot_type: sh.shot_type, camera_move: sh.camera_move,
+        characters: sh.characters, action: sh.action, dialogue: sh.dialogue,
+        start_frame_prompt: sh.start_frame_prompt, end_frame_prompt: sh.end_frame_prompt, video_prompt: sh.video_prompt })),
+    }));
+    const out = await generate(ctx, withBible(bible, `Episode ${episode.episode_number} shots (JSON):
+${JSON.stringify(brief)}
+
+The finished clips feel too slow and emotionless, and some jump to a different place halfway because the
+end frame differs too much from the start frame. For EVERY shot, rewrite:
+- acting: 2-3 emotional beats with visible expressions and body language, true to the action and dialogue;
+- end_frame_prompt: as an edit of the start frame, keeping location, background, props, clothes, camera
+  angle and framing, changing only pose and expression; keep the {c1}-style tokens if present;
+- video_prompt: one continuous shot, natural real-time speed, the acting beats, camera energy that fits.
+Return every shot with its scene_number and shot_number.`), ACTING_SCHEMA, 32000, "medium");
+    return out;
   },
 
   async "describe-character"(ctx, { image, name, face_prompt = "" }) {
