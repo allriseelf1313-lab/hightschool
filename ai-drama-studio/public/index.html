@@ -13,6 +13,18 @@
 </header>
 
 <main>
+  <section class="card settings">
+    <label>โมเดล AI
+      <select id="model">
+        <option value="claude-opus-5-5">Opus 5.5 — คุณภาพสูงสุด</option>
+        <option value="claude-sonnet-5-5">Sonnet 5.5 — ประหยัด ~50%</option>
+        <option value="claude-haiku-5-5">Haiku 5.5 — ถูกที่สุด (คุณภาพลดลง)</option>
+      </select>
+    </label>
+    <label class="check-label"><input type="checkbox" id="eco"> 💰 โหมดประหยัด <span class="muted small">(คิดน้อยลง ตรวจแก้ 1 รอบ)</span></label>
+    <div class="spent">ใช้ไปกับเรื่องนี้ ≈ <b id="spent">$0.00</b></div>
+    <button class="ghost" id="btnBackups">🕘 งานที่บันทึกไว้</button>
+  </section>
   <section class="card" id="step1">
     <h2>1. ไอเดียเรื่อง</h2>
     <label>เรื่องย่อ / ไอเดีย
@@ -45,7 +57,10 @@
   <section id="episodeView" hidden></section>
 </main>
 
-<div id="loading" hidden><div class="spinner"></div><p id="loadingText">กำลังเขียน...</p></div>
+<div id="loading" hidden><div class="spinner"></div><p id="loadingText">กำลังเขียน...</p>
+  <p id="loadingSub" class="muted small"></p>
+  <p class="muted small loading-note">ปิดหน้านี้ได้ งานยังทำต่อ — เปิดกลับมาจะได้ผลเอง<br>⚠️ แต่ห้ามปิดหน้าต่าง PowerShell</p></div>
+<div id="modal" hidden><div class="modal-box"><div id="modalBody"></div><button class="ghost" id="modalClose">ปิด</button></div></div>
 <div id="toast" hidden></div>
 
 <script src="storyboard.js"></script>

@@ -1,7 +1,9 @@
 // AI Drama Studio — server
 // Idea -> series bible -> shooting script with blocking, storyboard and prompts for
 // image/video generators such as Google Flow / Veo. Every episode is checked for
-// camera continuity and the AI fixes the scenes that fail, up to two rounds.
+// camera continuity and the AI fixes the scenes that fail.
+// Long AI work runs as background jobs, so closing the page does not lose the result,
+// and the project is backed up to ./data on this computer.
 import express from "express";
 import Anthropic from "@anthropic-ai/sdk";
 import fs from "node:fs";
@@ -9,9 +11,18 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const MODEL = process.env.DRAMA_MODEL || "claude-opus-5-5";
+const DEFAULT_MODEL = process.env.DRAMA_MODEL || "claude-opus-5-5";
 const PORT = Number(process.env.PORT || 3000);
-const REVIEW_ROUNDS = 2;
+const DATA = path.join(here, "data");
+for (const d of ["jobs", "backups"]) fs.mkdirSync(path.join(DATA, d), { recursive: true });
+
+// USD per million tokens. Cache writes cost 1.25x input; cache reads are listed.
+const MODELS = {
+  "claude-opus-5-5": { input: 4, output: 20, cacheRead: 0.2, fallbacks: true },
+  "claude-sonnet-5-5": { input: 2, output: 10, cacheRead: 0.1, fallbacks: true },
+  "claude-haiku-5-5": { input: 0.1, output: 0.5, cacheRead: 0.01, fallbacks: false },
+};
+const modelOf = (m) => (MODELS[m] ? m : MODELS[DEFAULT_MODEL] ? DEFAULT_MODEL : "claude-opus-5-5");
 
 const client = new Anthropic(); // reads ANTHROPIC_API_KEY from the environment
 
@@ -88,7 +99,20 @@ const EPISODE_SCHEMA = obj({
   scenes: arr(SCENE),
 });
 
-const SCHEMA_NAMES = new Map([[BIBLE_SCHEMA, "series bible"], [EPISODE_SCHEMA, "episode"], [SCENE, "scene"], [SHOT, "shot"]]);
+
+// Episode plan: the cheap first step. Scenes are then written in parallel from it.
+const EPISODE_PLAN = obj({
+  episode_number: int, title: str, pov_character: str, cold_open: str,
+  scenes: arr(obj({
+    scene_number: int, location_id: str, time_of_day: str, summary: str,
+    change_type: str, what_changes: str, dramatic_irony: str, threads_touched: arr(str),
+    lighting: str, music_cue: str, axis_characters: arr(str), camera_side_note: str,
+    wardrobe: arr(obj({ character: str, outfit_id: str })),
+    shot_count: int,
+  })),
+});
+
+const SCHEMA_NAMES = new Map([[BIBLE_SCHEMA, "series bible"], [EPISODE_SCHEMA, "episode"], [EPISODE_PLAN, "episode plan"], [SCENE, "scene"], [SHOT, "shot"]]);
 const schemaName = (schema) => SCHEMA_NAMES.get(schema) || "object";
 
 // ---------- prompts ----------
@@ -165,23 +189,42 @@ Photorealism:
 - negative_prompt lists what to avoid: plastic skin, extra fingers, warped faces, morphing, changing
   clothes, cartoon look, text artifacts, oversaturated colours.`;
 
+// ---------- calling the model ----------
+// ctx = { model, eco, job }: which model, economy mode, and the job that pays for the call.
 // Structured outputs guarantee the JSON shape, but the API refuses schemas that compile to a grammar
-// that is too large (the episode script is). For those, ask for plain JSON with the schema in the
-// prompt, validate it here, and send any problems back for one correction pass.
+// that is too large. For those, ask for plain JSON with the schema in the prompt, validate it here,
+// and send any problems back for one correction pass.
 const looseSchemas = new Set();
+const SYSTEM_BLOCKS = [{ type: "text", text: SYSTEM, cache_control: { type: "ephemeral" } }];
 
-async function callModel(content, maxTokens, effort, format) {
+function effortFor(ctx, effort) {
+  if (!ctx.eco) return effort;
+  return effort === "high" ? "medium" : effort === "medium" ? "low" : effort;
+}
+
+function addCost(ctx, usage) {
+  if (!ctx.job || !usage) return;
+  const p = MODELS[ctx.model];
+  const cost = ((usage.input_tokens || 0) * p.input + (usage.cache_creation_input_tokens || 0) * p.input * 1.25
+    + (usage.cache_read_input_tokens || 0) * p.cacheRead + (usage.output_tokens || 0) * p.output) / 1e6;
+  ctx.job.cost += cost;
+  ctx.job.tokens.cached += usage.cache_read_input_tokens || 0;
+}
+
+async function callModel(ctx, content, maxTokens, effort, format) {
+  const fb = MODELS[ctx.model].fallbacks;
   const stream = client.beta.messages.stream({
-    model: MODEL,
+    model: ctx.model,
     max_tokens: maxTokens,
-    system: SYSTEM,
+    system: SYSTEM_BLOCKS,
     thinking: { type: "adaptive" },
-    output_config: format ? { effort, format } : { effort },
-    betas: ["server-side-fallback-2026-07-01"],
-    fallbacks: "default", // re-runs on another model if a safety classifier declines
+    output_config: format ? { effort: effortFor(ctx, effort), format } : { effort: effortFor(ctx, effort) },
+    // server-side fallback re-runs the request on another model if a safety classifier declines
+    ...(fb ? { betas: ["server-side-fallback-2026-07-01"], fallbacks: "default" } : {}),
     messages: [{ role: "user", content }],
   });
   const message = await stream.finalMessage();
+  addCost(ctx, message.usage);
   if (message.stop_reason === "refusal") throw new Error("โมเดลปฏิเสธคำขอนี้ ลองปรับเนื้อเรื่องแล้วลองใหม่");
   if (message.stop_reason === "max_tokens") throw new Error("ผลลัพธ์ยาวเกินไป ลองลดจำนวนตอน/ฉากลง");
   return message.content.filter((b) => b.type === "text").map((b) => b.text).join("");
@@ -190,29 +233,30 @@ async function callModel(content, maxTokens, effort, format) {
 const isGrammarTooLarge = (err) =>
   err instanceof Anthropic.BadRequestError && /grammar|schema.*(large|complex)|too (large|complex)/i.test(err.message);
 
-async function generate(content, schema, maxTokens, effort = "medium") {
-  if (!looseSchemas.has(schema)) {
+async function generate(ctx, content, schema, maxTokens, effort = "medium") {
+  const key = `${ctx.model}:${schemaName(schema)}`;
+  if (!looseSchemas.has(key)) {
     try {
-      return JSON.parse(await callModel(content, maxTokens, effort, { type: "json_schema", schema }));
+      return JSON.parse(await callModel(ctx, content, maxTokens, effort, { type: "json_schema", schema }));
     } catch (err) {
       if (!isGrammarTooLarge(err)) throw err;
-      console.log("Schema too large for structured outputs; using validated JSON mode instead.");
-      looseSchemas.add(schema);
+      console.log(`Schema "${schemaName(schema)}" too large for structured outputs; using validated JSON mode.`);
+      looseSchemas.add(key);
     }
   }
-  return generateLoose(content, schema, maxTokens, effort);
+  return generateLoose(ctx, content, schema, maxTokens, effort);
 }
 
 function withInstruction(content, text) {
   return typeof content === "string" ? `${content}\n\n${text}` : [...content, { type: "text", text }];
 }
 
-async function generateLoose(content, schema, maxTokens, effort) {
+async function generateLoose(ctx, content, schema, maxTokens, effort) {
   const instruction = `Schema name: ${schemaName(schema)}
 Reply with one JSON object only — no markdown fences, no commentary — that matches this JSON Schema
 exactly (every listed property present, no extra properties):
 ${JSON.stringify(schema)}`;
-  let text = await callModel(withInstruction(content, instruction), maxTokens, effort);
+  let text = await callModel(ctx, withInstruction(content, instruction), maxTokens, effort);
   for (let attempt = 0; ; attempt++) {
     let value, errors;
     try {
@@ -223,7 +267,7 @@ ${JSON.stringify(schema)}`;
     }
     if (!errors.length) return value;
     if (attempt >= 1) throw new Error(`AI ตอบรูปแบบไม่ครบ (${errors.length} จุด) ลองกดใหม่อีกครั้ง`);
-    text = await callModel(withInstruction(content, `${instruction}
+    text = await callModel(ctx, withInstruction(content, `${instruction}
 
 Your previous reply had these problems:
 ${errors.slice(0, 40).join("\n")}
@@ -295,14 +339,23 @@ function keepLocked(bible, original, lockedIds = []) {
   return bible;
 }
 
-const bibleText = (bible) => `Series bible (JSON):\n${JSON.stringify(bible)}\n
-Content rating: ${bible.rating} — ${RATING_RULES[ratingOf(bible.rating)]}`;
+// The bible goes first and is marked for caching: every later call about the same series
+// re-reads it at about a twentieth of the normal input price.
+const bibleBlock = (bible) => ({
+  type: "text",
+  cache_control: { type: "ephemeral" },
+  text: `Series bible (JSON):\n${JSON.stringify(bible)}\n
+Content rating: ${bible.rating} — ${RATING_RULES[ratingOf(bible.rating)]}`,
+});
+const withBible = (bible, text) => [bibleBlock(bible), { type: "text", text }];
 
-// Run the storyboard checks and let the AI repair failing scenes, up to REVIEW_ROUNDS each.
-async function reviewEpisode(bible, episode) {
+// Run the storyboard checks and let the AI repair failing scenes.
+async function reviewEpisode(ctx, bible, episode) {
+  const rounds = ctx.eco ? 1 : 2;
   const log = [];
+  const outline = episode.scenes.map((s) => `${s.scene_number}. ${s.summary}`).join("\n");
   episode.scenes = await Promise.all(episode.scenes.map(async (scene) => {
-    for (let round = 1; round <= REVIEW_ROUNDS; round++) {
+    for (let round = 1; round <= rounds; round++) {
       const problems = Object.entries(SB.check(scene, nameOf(bible), bible))
         .flatMap(([shot, list]) => list.map((p) => `shot ${shot}: ${p}`));
       if (!problems.length) {
@@ -310,10 +363,8 @@ async function reviewEpisode(bible, episode) {
         return scene;
       }
       log.push({ scene: scene.scene_number, round, problems });
-      const outline = episode.scenes.map((s) => `${s.scene_number}. ${s.summary}`).join("\n");
-      scene = await generate(`${bibleText(bible)}
-
-Episode ${episode.episode_number} "${episode.title}" scene outline:
+      progress(ctx, `แก้มุมกล้องฉาก ${scene.scene_number} (รอบ ${round})…`);
+      scene = await generate(ctx, withBible(bible, `Episode ${episode.episode_number} "${episode.title}" scene outline:
 ${outline}
 
 This scene (JSON):
@@ -323,31 +374,58 @@ The storyboard check found these problems (messages are in Thai):
 ${problems.join("\n")}
 
 Return the corrected scene with the same scene_number and story. Fix camera positions, lenses,
-frame_positions and the matching frame prompts so every problem is solved; keep everything else.`,
-        SCENE, 48000, "high");
+frame_positions and the matching frame prompts so every problem is solved; keep everything else.`),
+      SCENE, 48000, "high");
     }
     const left = Object.values(SB.check(scene, nameOf(bible), bible)).flat().length;
-    log.push({ scene: scene.scene_number, round: REVIEW_ROUNDS, fixed: left === 0, remaining: left });
+    log.push({ scene: scene.scene_number, round: rounds, fixed: left === 0, remaining: left });
     return scene;
   }));
   return log;
 }
 
-// ---------- routes ----------
-const app = express();
-app.use(express.json({ limit: "8mb" }));
-app.use(express.static(path.join(here, "public")));
+// ---------- background jobs ----------
+const jobs = new Map();
+const progress = (ctx, text) => { if (ctx.job) ctx.job.progress = text; };
+const jobFile = (id) => path.join(DATA, "jobs", `${id.replace(/[^a-z0-9-]/gi, "")}.json`);
 
-const route = (fn) => async (req, res) => {
-  try { res.json(await fn(req.body || {})); } catch (err) { handleError(res, err); }
-};
+function startJob(type, body, work) {
+  const id = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  const job = { id, type, status: "running", progress: "เริ่มงาน…", started: Date.now(), cost: 0, tokens: { cached: 0 } };
+  jobs.set(id, job);
+  const ctx = { model: modelOf(body.model), eco: !!body.eco, job };
+  job.model = ctx.model;
+  work(ctx, body)
+    .then((result) => Object.assign(job, { status: "done", result, progress: "เสร็จแล้ว" }))
+    .catch((err) => { console.error(err); Object.assign(job, { status: "error", error: friendlyError(err) }); })
+    .finally(() => {
+      job.finished = Date.now();
+      try { fs.writeFileSync(jobFile(id), JSON.stringify(job)); } catch (e) { console.error(e); }
+      setTimeout(() => jobs.delete(id), 60 * 60 * 1000);
+    });
+  return job;
+}
+
 class BadRequest extends Error {}
 
-app.post("/api/bible", route(async ({ idea, genre = "", episodes = 6, style = "", rating = "13+" }) => {
-  if (!idea || typeof idea !== "string") throw new BadRequest("กรุณาใส่ไอเดียเรื่อง");
-  const n = clamp(episodes, 1, 20, 6);
-  const r = ratingOf(rating);
-  return generate(`Create a series bible for a short AI vertical drama series.
+function friendlyError(err) {
+  if (err instanceof BadRequest) return err.message;
+  if (err instanceof Anthropic.AuthenticationError) return "API key ไม่ถูกต้อง ตรวจสอบ ANTHROPIC_API_KEY";
+  if (err instanceof Anthropic.RateLimitError) return "เรียกใช้บ่อยเกินไป รอสักครู่แล้วลองใหม่";
+  if (err instanceof Anthropic.APIError && /credit balance/i.test(err.message)) return "เครดิต Claude หมด — เติมเงินที่ console.anthropic.com → Billing";
+  if (err instanceof Anthropic.APIError) return `API error: ${err.message}`;
+  if (/authentication method/i.test(err.message || "")) return "ยังไม่ได้ตั้งค่า ANTHROPIC_API_KEY ในหน้าต่าง PowerShell";
+  return err.message || "เกิดข้อผิดพลาด";
+}
+
+// ---------- the work each job does ----------
+const WORK = {
+  async bible(ctx, { idea, genre = "", episodes = 6, style = "", rating = "13+" }) {
+    if (!idea || typeof idea !== "string") throw new BadRequest("กรุณาใส่ไอเดียเรื่อง");
+    const n = clamp(episodes, 1, 20, 6);
+    const r = ratingOf(rating);
+    progress(ctx, "กำลังสร้างตัวละคร ปมเรื่อง โทนสี และโครงเรื่องทุกตอน…");
+    return generate(ctx, `Create a series bible for a short AI vertical drama series.
 Story idea: ${idea}
 Genre: ${genre || "choose the best fit"}
 Number of episodes: ${n}
@@ -357,98 +435,171 @@ Content rating: ${r} — ${RATING_RULES[r]} (put "${r}" in the rating field)
 Give 3-6 main characters with ids c1, c2..., each with 2-3 outfits (ids o1, o2...) and a distinct
 signature colour; 3-6 locations (l1, l2...); 2-4 mystery threads (t1, t2...) whose payoffs land
 within ${n} episodes; a color_script entry for every episode; and exactly ${n} episodes.`, BIBLE_SCHEMA, 48000);
-}));
+  },
 
-app.post("/api/revise-bible", route(async ({ bible, instruction, locked = [] }) => {
-  if (!bible || !instruction) throw new BadRequest("ไม่มีคำสั่งแก้");
-  const out = await generate(`${bibleText(bible)}
-
-Revise the series bible following this instruction from the creator:
+  async "revise-bible"(ctx, { bible, instruction, locked = [] }) {
+    if (!bible || !instruction) throw new BadRequest("ไม่มีคำสั่งแก้");
+    progress(ctx, "กำลังแก้ไบเบิลตามคำสั่ง…");
+    const out = await generate(ctx, withBible(bible, `Revise the series bible following this instruction from the creator:
 "${instruction}"
 
 Change only what the instruction needs and keep ids stable. These characters are locked and must stay
-exactly as they are: ${locked.join(", ") || "none"}.`, BIBLE_SCHEMA, 48000);
-  return keepLocked(out, bible, locked);
-}));
+exactly as they are: ${locked.join(", ") || "none"}.`), BIBLE_SCHEMA, 48000);
+    return keepLocked(out, bible, locked);
+  },
 
-app.post("/api/episode", route(async ({ bible, episodeNumber, scenes = 4 }) => {
-  const ep = bible?.episodes?.find((e) => e.number === Number(episodeNumber));
-  if (!ep) throw new BadRequest("ไม่พบตอนที่เลือก");
-  const s = clamp(scenes, 1, 10, 4);
-  const episode = await generate(`${bibleText(bible)}
-
-Write episode ${ep.number} "${ep.title}" as a shooting script with full blocking and camera positions:
-${s} scenes, 3-6 shots per scene. Follow every rule.
+  // Plan the episode first (small, fast), then write every scene in parallel from the plan.
+  async episode(ctx, { bible, episodeNumber, scenes = 4 }) {
+    const ep = bible?.episodes?.find((e) => e.number === Number(episodeNumber));
+    if (!ep) throw new BadRequest("ไม่พบตอนที่เลือก");
+    const s = clamp(scenes, 1, 10, 4);
+    progress(ctx, "ขั้นที่ 1/3: วางโครงตอน…");
+    const plan = await generate(ctx, withBible(bible, `Plan episode ${ep.number} "${ep.title}": exactly ${s} scenes with 3-6 shots each.
 Hook (first shot): ${ep.hook_open}
 Synopsis: ${ep.synopsis}
 End on this cliffhanger: ${ep.cliffhanger}
 POV character: ${ep.pov_character}
 Threads to advance: ${ep.threads.join(", ")}
-Use the character, outfit, location and thread ids from the bible.`, EPISODE_SCHEMA, 100000, "high");
-  const review = await reviewEpisode(bible, episode);
-  return { episode, review };
-}));
+For every scene give its purpose, the two axis characters (or none), lighting, music and the outfit each
+character wears. Use the ids from the bible.`), EPISODE_PLAN, 16000, "high");
 
-app.post("/api/revise-episode", route(async ({ bible, episode, instruction }) => {
-  if (!bible || !episode || !instruction) throw new BadRequest("ไม่มีคำสั่งแก้");
-  const out = await generate(`${bibleText(bible)}
+    let done = 0;
+    progress(ctx, `ขั้นที่ 2/3: เขียนทุกฉากพร้อมกัน (0/${plan.scenes.length})…`);
+    const written = await Promise.all(plan.scenes.map(async (sp, i) => {
+      const prev = plan.scenes[i - 1], next = plan.scenes[i + 1];
+      const scene = await generate(ctx, withBible(bible, `Episode plan (JSON):
+${JSON.stringify(plan)}
 
-Current shooting script of episode ${episode.episode_number} (JSON):
+Write scene ${sp.scene_number} in full with ${sp.shot_count} shots, numbered from 1, with complete blocking,
+camera positions and prompts. Copy the scene fields from the plan and follow every rule.
+${i === 0 ? `The first shot is the episode hook: ${plan.cold_open}` : `It follows scene ${prev.scene_number}: ${prev.summary}`}
+${next ? `It leads into scene ${next.scene_number}: ${next.summary}` : `It ends the episode on the cliffhanger: ${ep.cliffhanger}`}`),
+      SCENE, 48000, "high");
+      const { shot_count, ...fields } = sp;
+      done++;
+      progress(ctx, `ขั้นที่ 2/3: เขียนทุกฉากพร้อมกัน (${done}/${plan.scenes.length})…`);
+      return { ...scene, ...fields, scene_number: sp.scene_number, shots: scene.shots };
+    }));
+    const { scenes: _plan, ...head } = plan;
+    const episode = { ...head, scenes: written };
+    progress(ctx, "ขั้นที่ 3/3: ตรวจมุมกล้อง…");
+    const review = await reviewEpisode(ctx, bible, episode);
+    return { episode, review };
+  },
+
+  async "revise-episode"(ctx, { bible, episode, instruction }) {
+    if (!bible || !episode || !instruction) throw new BadRequest("ไม่มีคำสั่งแก้");
+    progress(ctx, "กำลังแก้ทั้งตอนตามคำสั่ง…");
+    const out = await generate(ctx, withBible(bible, `Current shooting script of episode ${episode.episode_number} (JSON):
 ${JSON.stringify(episode)}
 
 Revise it following this instruction from the creator:
 "${instruction}"
 
-Change only what the instruction needs; keep everything else, including blocking that already works.`,
-  EPISODE_SCHEMA, 100000, "high");
-  const review = await reviewEpisode(bible, out);
-  return { episode: out, review };
-}));
+Change only what the instruction needs; keep everything else, including blocking that already works.`),
+    EPISODE_SCHEMA, 100000, "high");
+    progress(ctx, "ตรวจมุมกล้อง…");
+    const review = await reviewEpisode(ctx, bible, out);
+    return { episode: out, review };
+  },
 
-app.post("/api/shot", route(async ({ bible, scene, shotNumber, instruction = "" }) => {
-  const idx = scene?.shots?.findIndex((s) => s.shot_number === Number(shotNumber));
-  if (idx == null || idx < 0) throw new BadRequest("ไม่พบช็อตที่เลือก");
-  let problems = [];
-  let shot;
-  for (let round = 0; round <= 1; round++) {
-    shot = await generate(`${bibleText(bible)}
-
-Scene (JSON):
+  async shot(ctx, { bible, scene, shotNumber, instruction = "" }) {
+    const idx = scene?.shots?.findIndex((s) => s.shot_number === Number(shotNumber));
+    if (idx == null || idx < 0) throw new BadRequest("ไม่พบช็อตที่เลือก");
+    let problems = [];
+    let shot;
+    for (let round = 0; round <= 1; round++) {
+      progress(ctx, round ? "แก้จุดที่ยังไม่ผ่าน…" : `กำลังเขียนช็อต ${shotNumber} ใหม่…`);
+      shot = await generate(ctx, withBible(bible, `Scene (JSON):
 ${JSON.stringify(scene)}
 
 Rewrite only shot ${shotNumber}. ${instruction ? `Creator's instruction: "${instruction}".` : "Make it better."}
 It must cut smoothly from the shot before and into the shot after: keep the same side of the line of
 action, screen direction, wardrobe, props and light. Keep shot_number ${shotNumber}.
-${problems.length ? `Your previous attempt had these problems, fix them:\n${problems.join("\n")}` : ""}`,
-    SHOT, 24000, "high");
-    const trial = { ...scene, shots: scene.shots.map((s, i) => (i === idx ? shot : s)) };
-    problems = (SB.check(trial, nameOf(bible), bible)[shotNumber] || []);
-    if (!problems.length) break;
-  }
-  return { shot, warnings: problems };
-}));
+${problems.length ? `Your previous attempt had these problems, fix them:\n${problems.join("\n")}` : ""}`),
+      SHOT, 24000, "medium");
+      const trial = { ...scene, shots: scene.shots.map((s, i) => (i === idx ? shot : s)) };
+      problems = SB.check(trial, nameOf(bible), bible)[shotNumber] || [];
+      if (!problems.length || ctx.eco) break;
+    }
+    return { shot, warnings: problems };
+  },
 
-app.post("/api/describe-character", route(async ({ image, name, face_prompt = "" }) => {
-  const m = /^data:(image\/(png|jpeg|webp|gif));base64,(.+)$/.exec(image || "");
-  if (!m) throw new BadRequest("ไฟล์ภาพไม่ถูกต้อง");
-  return generate([
-    { type: "image", source: { type: "base64", media_type: m[1], data: m[3] } },
-    { type: "text", text: `This is the chosen reference image for the character "${name}".
+  async "describe-character"(ctx, { image, name, face_prompt = "" }) {
+    const m = /^data:(image\/(png|jpeg|webp|gif));base64,(.+)$/.exec(image || "");
+    if (!m) throw new BadRequest("ไฟล์ภาพไม่ถูกต้อง");
+    progress(ctx, `AI กำลังดูภาพของ${name}…`);
+    return generate(ctx, [
+      { type: "image", source: { type: "base64", media_type: m[1], data: m[3] } },
+      { type: "text", text: `This is the chosen reference image for the character "${name}".
 Current description: ${face_prompt || "(none)"}
 Write a new face_prompt in English that matches this exact person so an image generator draws the same
 face every time: apparent age, face shape, eyes, eyebrows, nose, lips, skin tone, hair colour, length,
 texture and style, build, and distinguishing marks. Do not mention clothing, background or pose.` },
-  ], obj({ face_prompt: str }), 4000, "medium");
-}));
+    ], obj({ face_prompt: str }), 4000, "medium");
+  },
+};
 
-function handleError(res, err) {
-  if (err instanceof BadRequest) return res.status(400).json({ error: err.message });
-  console.error(err);
-  if (err instanceof Anthropic.AuthenticationError) return res.status(401).json({ error: "API key ไม่ถูกต้อง ตรวจสอบ ANTHROPIC_API_KEY" });
-  if (err instanceof Anthropic.RateLimitError) return res.status(429).json({ error: "เรียกใช้บ่อยเกินไป รอสักครู่แล้วลองใหม่" });
-  if (err instanceof Anthropic.APIError) return res.status(502).json({ error: `API error: ${err.message}` });
-  if (/authentication method/i.test(err.message || "")) return res.status(401).json({ error: "ยังไม่ได้ตั้งค่า ANTHROPIC_API_KEY บนเซิร์ฟเวอร์" });
-  res.status(500).json({ error: err.message || "เกิดข้อผิดพลาด" });
-}
+// ---------- routes ----------
+const app = express();
+app.use(express.json({ limit: "20mb" }));
+app.use(express.static(path.join(here, "public")));
+
+app.get("/api/models", (req, res) => res.json({ default: modelOf(DEFAULT_MODEL), models: Object.keys(MODELS) }));
+
+app.post("/api/job/:type", (req, res) => {
+  const work = WORK[req.params.type];
+  if (!work) return res.status(404).json({ error: "ไม่รู้จักงานนี้" });
+  const job = startJob(req.params.type, req.body || {}, work);
+  res.json({ id: job.id });
+});
+
+app.get("/api/job/:id", (req, res) => {
+  let job = jobs.get(req.params.id);
+  if (!job) { try { job = JSON.parse(fs.readFileSync(jobFile(req.params.id), "utf8")); } catch {} }
+  if (!job) return res.status(404).json({ error: "ไม่พบงานนี้ (อาจปิดหน้าต่าง PowerShell ไประหว่างทำงาน)" });
+  res.json({ ...job, elapsed: Math.round(((job.finished || Date.now()) - job.started) / 1000) });
+});
+
+// ---------- project backups on this computer ----------
+const BACKUP_DIR = path.join(DATA, "backups");
+const KEEP_BACKUPS = 10;
+let lastSnapshot = 0;
+
+app.post("/api/save", (req, res) => {
+  const { project, major } = req.body || {};
+  if (!project?.bible) return res.status(400).json({ error: "ไม่มีข้อมูล" });
+  const text = JSON.stringify(project);
+  fs.writeFileSync(path.join(DATA, "current.json"), text);
+  // keep a dated copy at most every 2 minutes, or right away after a big change
+  if (major || Date.now() - lastSnapshot > 2 * 60 * 1000) {
+    lastSnapshot = Date.now();
+    fs.writeFileSync(path.join(BACKUP_DIR, `${Date.now()}.json`), text);
+    const files = fs.readdirSync(BACKUP_DIR).filter((f) => f.endsWith(".json")).sort();
+    for (const f of files.slice(0, Math.max(0, files.length - KEEP_BACKUPS))) fs.unlinkSync(path.join(BACKUP_DIR, f));
+  }
+  res.json({ ok: true });
+});
+
+app.get("/api/backups", (req, res) => {
+  const list = fs.readdirSync(BACKUP_DIR).filter((f) => f.endsWith(".json")).sort().reverse().map((f) => {
+    try {
+      const p = JSON.parse(fs.readFileSync(path.join(BACKUP_DIR, f), "utf8"));
+      return { file: f, time: Number(f.replace(".json", "")), title: p.bible?.title, episodes: Object.keys(p.episodes || {}).length };
+    } catch { return null; }
+  }).filter(Boolean);
+  let current = null;
+  try {
+    const p = JSON.parse(fs.readFileSync(path.join(DATA, "current.json"), "utf8"));
+    current = { title: p.bible?.title, episodes: Object.keys(p.episodes || {}).length };
+  } catch {}
+  res.json({ current, backups: list });
+});
+
+app.get("/api/backup/:file", (req, res) => {
+  const f = req.params.file === "current" ? path.join(DATA, "current.json")
+    : path.join(BACKUP_DIR, req.params.file.replace(/[^0-9.json]/g, ""));
+  try { res.type("json").send(fs.readFileSync(f, "utf8")); } catch { res.status(404).json({ error: "ไม่พบไฟล์" }); }
+});
 
 app.listen(PORT, () => console.log(`🎬 AI Drama Studio: http://localhost:${PORT}`));

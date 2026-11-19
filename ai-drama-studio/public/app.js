@@ -3,12 +3,19 @@ const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) =>
   ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
-const state = Object.assign({ bible: null, episodes: {}, reviews: {} }, load());
+const state = Object.assign({ bible: null, episodes: {}, reviews: {}, spent: 0 }, load());
 let editing = null; // "scene-shot" being edited by hand
 
-function save() {
-  try { localStorage.setItem("aiDramaStudio", JSON.stringify(state)); }
-  catch { toast("พื้นที่ในเบราว์เซอร์เต็ม — ดาวน์โหลด JSON เก็บไว้แทน"); }
+// Saved twice: in the browser, and as a file on this computer (./data) with dated backups.
+let serverSaveTimer = null;
+function save(major = false) {
+  try { localStorage.setItem("aiDramaStudio", JSON.stringify(state)); } catch {}
+  $("spent").textContent = `$${(state.spent || 0).toFixed(2)}`;
+  if (!state.bible) return;
+  clearTimeout(serverSaveTimer);
+  const send = () => fetch("/api/save", { method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ project: state, major }) }).catch(() => {});
+  if (major) send(); else serverSaveTimer = setTimeout(send, 1500);
 }
 function load() {
   try { return JSON.parse(localStorage.getItem("aiDramaStudio")) || {}; } catch { return {}; }
@@ -29,9 +36,59 @@ async function api(url, body) {
   if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
   return data;
 }
-async function busy(text, fn) {
-  loading(true, text);
-  try { return await fn(); } catch (err) { toast(err.message, 5000); } finally { loading(false); }
+// ---------- settings ----------
+const SETTINGS_KEY = "aiDramaSettings";
+const settings = (() => { try { return JSON.parse(localStorage.getItem(SETTINGS_KEY)) || {}; } catch { return {}; } })();
+function saveSettings() {
+  settings.model = $("model").value; settings.eco = $("eco").checked;
+  try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch {}
+}
+$("model").onchange = saveSettings; $("eco").onchange = saveSettings;
+fetch("/api/models").then((r) => r.json()).then((m) => {
+  $("model").value = settings.model && m.models.includes(settings.model) ? settings.model : m.default;
+}).catch(() => {});
+$("eco").checked = !!settings.eco;
+
+// ---------- background jobs ----------
+// The server does the AI work in the background. The page only polls, so closing or refreshing the
+// page does not lose the result: the pending job is remembered and picked up again on the next visit.
+const PENDING_KEY = "aiDramaPending";
+const APPLY = {}; // type -> (result, meta) => void, filled in below
+
+async function runJob(type, body, meta = {}) {
+  let id;
+  loading(true, "เริ่มงาน…"); $("loadingSub").textContent = "";
+  try { ({ id } = await api(`/api/job/${type}`, { ...body, model: $("model").value, eco: $("eco").checked })); }
+  catch (err) { loading(false); toast(err.message, 5000); return; }
+  try { localStorage.setItem(PENDING_KEY, JSON.stringify({ id, type, meta })); } catch {}
+  return waitJob(id, type, meta);
+}
+
+async function waitJob(id, type, meta) {
+  loading(true, "เริ่มงาน…");
+  try {
+    for (;;) {
+      const res = await fetch(`/api/job/${id}`);
+      const job = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(job.error || "ติดต่อโปรแกรมไม่ได้ — หน้าต่าง PowerShell ยังเปิดอยู่ไหม");
+      $("loadingText").textContent = job.progress || "กำลังทำงาน…";
+      const mm = Math.floor(job.elapsed / 60), ss = String(job.elapsed % 60).padStart(2, "0");
+      $("loadingSub").textContent = `ผ่านไป ${mm}:${ss} นาที · ค่าใช้จ่ายงานนี้ ≈ $${(job.cost || 0).toFixed(3)}`;
+      if (job.status === "done") {
+        state.spent = (state.spent || 0) + (job.cost || 0);
+        APPLY[type](job.result, meta);
+        toast(`เสร็จแล้ว ✓ ใช้ไป ≈ $${(job.cost || 0).toFixed(3)}`, 4000);
+        return job.result;
+      }
+      if (job.status === "error") throw new Error(job.error);
+      await new Promise((r) => setTimeout(r, 2000));
+    }
+  } catch (err) {
+    toast(err.message, 6000);
+  } finally {
+    try { localStorage.removeItem(PENDING_KEY); } catch {}
+    loading(false);
+  }
 }
 
 function copy(text) {
@@ -88,19 +145,21 @@ $("rating").onchange();
 $("btnBible").onclick = () => {
   const idea = $("idea").value.trim();
   if (!idea) return toast("ใส่ไอเดียเรื่องก่อนนะ");
-  busy("กำลังสร้างตัวละคร ปมเรื่อง โทนสี และโครงเรื่องทุกตอน... (1-3 นาที)", async () => {
-    state.bible = await api("/api/bible", {
-      idea, genre: $("genre").value, episodes: $("episodes").value, style: $("style").value, rating: $("rating").value,
-    });
-    state.episodes = {}; state.reviews = {};
-    save(); renderBible(); $("episodeView").hidden = true;
-  });
+  if (state.bible && !confirm(`สร้างเรื่องใหม่จะแทนที่เรื่อง "${state.bible.title}"\n(เรื่องเดิมถูกสำรองไว้ กู้คืนได้ที่ปุ่ม 🕘 งานที่บันทึกไว้)\n\nสร้างต่อไหม?`)) return;
+  if (state.bible) save(true);
+  runJob("bible", { idea, genre: $("genre").value, episodes: $("episodes").value, style: $("style").value, rating: $("rating").value });
+};
+APPLY.bible = (bible) => {
+  state.bible = bible; state.episodes = {}; state.reviews = {}; state.spent = state.spent || 0;
+  save(true); renderBible(); $("episodeView").hidden = true;
 };
 
 $("btnSample").onclick = async () => {
+  if (state.bible && !confirm(`ดูตัวอย่างจะแทนที่เรื่อง "${state.bible.title}" ที่เปิดอยู่\n(เรื่องเดิมถูกสำรองไว้ กู้คืนได้ที่ปุ่ม 🕘 งานที่บันทึกไว้)\n\nทำต่อไหม?`)) return;
+  if (state.bible) save(true);
   try {
     const data = await (await fetch("sample.json")).json();
-    Object.assign(state, { reviews: {} }, data); save(); renderBible(); renderEpisode(1);
+    Object.assign(state, { reviews: {}, spent: 0 }, data); save(true); renderBible(); renderEpisode(1);
     $("bibleView").scrollIntoView({ behavior: "smooth" });
   } catch { toast("โหลดตัวอย่างไม่ได้"); }
 };
@@ -161,7 +220,52 @@ function renderBible() {
 
   v.querySelectorAll("[data-ep]").forEach((btn) => (btn.onclick = () => openEpisode(+btn.dataset.ep, btn)));
   v.querySelectorAll("[data-lock]").forEach((btn) => (btn.onclick = () => {
-    const c = b.characters.find((x) => x.id === btn.dataset.lock); c.locked = !c.locked; save(); renderBible();
+    const c = b.characters.find((x) => x.id === btn.dataset.lock); c.locked = !c.locked; save(); // ---------- backups ----------
+function modal(html) { $("modalBody").innerHTML = html; $("modal").hidden = false; }
+$("modalClose").onclick = () => ($("modal").hidden = true);
+const fmtTime = (t) => new Date(t).toLocaleString("th-TH", { dateStyle: "medium", timeStyle: "short" });
+
+$("btnBackups").onclick = async () => {
+  try {
+    const { backups } = await (await fetch("/api/backups")).json();
+    modal(`<h3>🕘 งานที่บันทึกไว้ในคอมนี้</h3>
+      <p class="muted small">บันทึกอัตโนมัติทุกครั้งที่มีการเปลี่ยนแปลงใหญ่ เก็บไว้ 10 ครั้งล่าสุด (โฟลเดอร์ ai-drama-studio/data)</p>
+      ${backups.length ? backups.map((b) => `<div class="ep"><div><b>${esc(b.title || "ไม่มีชื่อ")}</b><br>
+        <span class="muted small">${fmtTime(b.time)} · บทถ่ายทำ ${b.episodes} ตอน</span></div>
+        <button class="ghost" data-restore="${esc(b.file)}">กู้คืน</button></div>`).join("") : "<p>ยังไม่มีงานที่บันทึกไว้</p>"}`);
+    document.querySelectorAll("[data-restore]").forEach((btn) => (btn.onclick = () => restore(btn.dataset.restore)));
+  } catch { toast("เปิดรายการไม่ได้"); }
+};
+
+async function restore(file) {
+  if (state.bible && !confirm("กู้คืนงานนี้แทนเรื่องที่เปิดอยู่? (เรื่องที่เปิดอยู่จะถูกสำรองไว้ก่อน)")) return;
+  if (state.bible) save(true);
+  try {
+    const data = await (await fetch(`/api/backup/${file}`)).json();
+    if (!data.bible) throw new Error();
+    Object.assign(state, { episodes: {}, reviews: {}, spent: 0 }, data);
+    try { localStorage.setItem("aiDramaStudio", JSON.stringify(state)); } catch {}
+    $("modal").hidden = true; renderBible(); $("episodeView").hidden = true; save();
+    toast("กู้คืนแล้ว ✓");
+  } catch { toast("กู้คืนไม่ได้"); }
+}
+
+// ---------- start ----------
+renderBible();
+save();
+(async () => {
+  // pick up a job that was still running when the page was closed
+  let pending = null;
+  try { pending = JSON.parse(localStorage.getItem(PENDING_KEY)); } catch {}
+  if (pending?.id) return waitJob(pending.id, pending.type, pending.meta || {});
+  // browser storage empty but a saved project exists on this computer: offer it
+  if (!state.bible) {
+    try {
+      const { current } = await (await fetch("/api/backups")).json();
+      if (current?.title && confirm(`พบงานที่บันทึกไว้: "${current.title}" (บทถ่ายทำ ${current.episodes} ตอน)\nเปิดงานนี้ต่อไหม?`)) restore("current");
+    } catch {}
+  }
+})();
   }));
   v.querySelectorAll("[data-upload]").forEach((inp) => (inp.onchange = () => uploadRef(inp.dataset.upload, inp.files[0])));
   v.querySelectorAll("[data-describe]").forEach((btn) => (btn.onclick = () => describeChar(btn.dataset.describe)));
@@ -213,36 +317,83 @@ async function uploadRef(id, file) {
 
 function describeChar(id) {
   const c = state.bible.characters.find((x) => x.id === id);
-  busy(`AI กำลังดูภาพของ${c.name}...`, async () => {
-    const r = await api("/api/describe-character", { image: c.ref_image, name: c.name, face_prompt: c.face_prompt });
-    c.face_prompt = r.face_prompt; c.locked = true;
-    save(); renderBible(); if (!$("episodeView").hidden && currentEp) renderEpisode(currentEp);
-    toast(`อัปเดตหน้าตา${c.name}จากภาพแล้ว และล็อกไว้ 🔒`, 4000);
-  });
+  runJob("describe-character", { image: c.ref_image, name: c.name, face_prompt: c.face_prompt }, { id });
 }
+APPLY["describe-character"] = (r, { id }) => {
+  const c = state.bible.characters.find((x) => x.id === id);
+  if (!c) return;
+  c.face_prompt = r.face_prompt; c.locked = true;
+  save(true); renderBible(); if (!$("episodeView").hidden && currentEp) renderEpisode(currentEp);
+};
 
 function reviseBible() {
   const instruction = $("bibleInstr").value.trim();
   if (!instruction) return toast("พิมพ์สิ่งที่อยากแก้ก่อน");
-  busy("กำลังแก้ไบเบิลตามคำสั่ง...", async () => {
-    const nb = await api("/api/revise-bible", { bible: serverBible(), instruction, locked: lockedIds() });
-    state.bible = reattachLocal(nb);
-    save(); renderBible();
-    if (Object.keys(state.episodes).length) toast("แก้ไบเบิลแล้ว — บทตอนที่เขียนไว้ก่อนหน้าไม่ได้เปลี่ยนตาม ถ้าต้องการให้กด 🔄 เขียนตอนนั้นใหม่", 6000);
-  });
+  save(true);
+  runJob("revise-bible", { bible: serverBible(), instruction, locked: lockedIds() });
 }
+APPLY["revise-bible"] = (nb) => {
+  state.bible = reattachLocal(nb);
+  save(true); // ---------- backups ----------
+function modal(html) { $("modalBody").innerHTML = html; $("modal").hidden = false; }
+$("modalClose").onclick = () => ($("modal").hidden = true);
+const fmtTime = (t) => new Date(t).toLocaleString("th-TH", { dateStyle: "medium", timeStyle: "short" });
+
+$("btnBackups").onclick = async () => {
+  try {
+    const { backups } = await (await fetch("/api/backups")).json();
+    modal(`<h3>🕘 งานที่บันทึกไว้ในคอมนี้</h3>
+      <p class="muted small">บันทึกอัตโนมัติทุกครั้งที่มีการเปลี่ยนแปลงใหญ่ เก็บไว้ 10 ครั้งล่าสุด (โฟลเดอร์ ai-drama-studio/data)</p>
+      ${backups.length ? backups.map((b) => `<div class="ep"><div><b>${esc(b.title || "ไม่มีชื่อ")}</b><br>
+        <span class="muted small">${fmtTime(b.time)} · บทถ่ายทำ ${b.episodes} ตอน</span></div>
+        <button class="ghost" data-restore="${esc(b.file)}">กู้คืน</button></div>`).join("") : "<p>ยังไม่มีงานที่บันทึกไว้</p>"}`);
+    document.querySelectorAll("[data-restore]").forEach((btn) => (btn.onclick = () => restore(btn.dataset.restore)));
+  } catch { toast("เปิดรายการไม่ได้"); }
+};
+
+async function restore(file) {
+  if (state.bible && !confirm("กู้คืนงานนี้แทนเรื่องที่เปิดอยู่? (เรื่องที่เปิดอยู่จะถูกสำรองไว้ก่อน)")) return;
+  if (state.bible) save(true);
+  try {
+    const data = await (await fetch(`/api/backup/${file}`)).json();
+    if (!data.bible) throw new Error();
+    Object.assign(state, { episodes: {}, reviews: {}, spent: 0 }, data);
+    try { localStorage.setItem("aiDramaStudio", JSON.stringify(state)); } catch {}
+    $("modal").hidden = true; renderBible(); $("episodeView").hidden = true; save();
+    toast("กู้คืนแล้ว ✓");
+  } catch { toast("กู้คืนไม่ได้"); }
+}
+
+// ---------- start ----------
+renderBible();
+save();
+(async () => {
+  // pick up a job that was still running when the page was closed
+  let pending = null;
+  try { pending = JSON.parse(localStorage.getItem(PENDING_KEY)); } catch {}
+  if (pending?.id) return waitJob(pending.id, pending.type, pending.meta || {});
+  // browser storage empty but a saved project exists on this computer: offer it
+  if (!state.bible) {
+    try {
+      const { current } = await (await fetch("/api/backups")).json();
+      if (current?.title && confirm(`พบงานที่บันทึกไว้: "${current.title}" (บทถ่ายทำ ${current.episodes} ตอน)\nเปิดงานนี้ต่อไหม?`)) restore("current");
+    } catch {}
+  }
+})();
+  if (Object.keys(state.episodes).length) setTimeout(() => toast("แก้ไบเบิลแล้ว — บทตอนที่เขียนไว้ก่อนหน้าไม่ได้เปลี่ยนตาม ถ้าต้องการให้กด 🔄 เขียนตอนนั้นใหม่", 6000), 4100);
+};
 
 // ---------- step 3: episode ----------
 let currentEp = null;
 function openEpisode(n, btn) {
   if (state.episodes[n]) return renderEpisode(n);
   btn.disabled = true;
-  busy(`กำลังเขียนบทถ่ายทำ EP${n} แล้วให้ AI ตรวจมุมกล้องเอง... (3-8 นาที)`, async () => {
-    const r = await api("/api/episode", { bible: serverBible(), episodeNumber: n, scenes: $("scenes").value });
-    state.episodes[n] = r.episode; state.reviews[n] = r.review;
-    save(); renderBible(); renderEpisode(n);
-  }).finally(() => (btn.disabled = false));
+  runJob("episode", { bible: serverBible(), episodeNumber: n, scenes: $("scenes").value }, { n }).finally(() => (btn.disabled = false));
 }
+APPLY.episode = (r, { n }) => {
+  state.episodes[n] = r.episode; state.reviews[n] = r.review;
+  save(true); renderBible(); renderEpisode(n);
+};
 
 function reviewSummary(review) {
   if (!review?.length) return "";
@@ -292,7 +443,10 @@ function renderEpisode(n) {
   $("copyAllVideo").onclick = () => copy(ep.scenes.flatMap((s) => s.shots.map((sh) =>
     `[${s.scene_number}.${sh.shot_number}] ${sh.video_prompt}`)).join("\n\n"));
   $("dlSrt").onclick = () => download(`EP${ep.episode_number}.srt`, toSRT(ep));
-  $("regen").onclick = () => { delete state.episodes[n]; save(); openEpisode(n, $("regen")); };
+  $("regen").onclick = () => {
+    if (!confirm(`เขียน EP${n} ใหม่ทั้งตอน? บทปัจจุบันจะถูกแทนที่ (มีสำรองไว้) และเสียค่าใช้จ่ายเท่าการเขียนตอนใหม่`)) return;
+    save(true); delete state.episodes[n]; openEpisode(n, $("regen"));
+  };
   $("btnReviseEp").onclick = () => reviseEpisode(n);
   v.querySelectorAll("[data-reshot]").forEach((btn) => (btn.onclick = () => reshoot(n, btn.dataset.reshot)));
   v.querySelectorAll("[data-edit]").forEach((btn) => (btn.onclick = () => { editing = btn.dataset.edit; renderEpisode(n); }));
@@ -379,12 +533,13 @@ function findShot(n, key) {
 function reshoot(n, key) {
   const { scene, idx, shn } = findShot(n, key);
   const instruction = $(`ins-${key}`).value.trim();
-  busy(`กำลังเขียนช็อต ${key.replace("-", ".")} ใหม่...`, async () => {
-    const r = await api("/api/shot", { bible: serverBible(), scene, shotNumber: shn, instruction });
-    scene.shots[idx] = r.shot; save(); renderEpisode(n);
-    toast(r.warnings?.length ? `เขียนใหม่แล้ว แต่ยังเหลือ ${r.warnings.length} จุดที่ควรดู` : "เขียนช็อตใหม่แล้ว ✓", 4000);
-  });
+  runJob("shot", { bible: serverBible(), scene, shotNumber: shn, instruction }, { n, key });
 }
+APPLY.shot = (r, { n, key }) => {
+  const { scene, idx } = findShot(n, key);
+  scene.shots[idx] = r.shot; save(true); renderEpisode(n);
+  if (r.warnings?.length) setTimeout(() => toast(`เขียนใหม่แล้ว แต่ยังเหลือ ${r.warnings.length} จุดที่ควรดู`, 5000), 4100);
+};
 
 function saveEdit(n, key) {
   const { scene, idx } = findShot(n, key);
@@ -401,11 +556,12 @@ function saveEdit(n, key) {
 function reviseEpisode(n) {
   const instruction = $("epInstr").value.trim();
   if (!instruction) return toast("พิมพ์สิ่งที่อยากแก้ก่อน");
-  busy(`กำลังแก้ EP${n} ตามคำสั่ง แล้วตรวจมุมกล้องซ้ำ... (3-8 นาที)`, async () => {
-    const r = await api("/api/revise-episode", { bible: serverBible(), episode: state.episodes[n], instruction });
-    state.episodes[n] = r.episode; state.reviews[n] = r.review; save(); renderEpisode(n);
-  });
+  save(true);
+  runJob("revise-episode", { bible: serverBible(), episode: state.episodes[n], instruction }, { n });
 }
+APPLY["revise-episode"] = (r, { n }) => {
+  state.episodes[n] = r.episode; state.reviews[n] = r.review; save(true); renderEpisode(n);
+};
 
 // ---------- export / import ----------
 function srtTime(t) {
@@ -459,9 +615,56 @@ async function openProject(e) {
   try {
     const data = JSON.parse(await file.text());
     if (!data.bible) throw new Error();
-    Object.assign(state, { episodes: {}, reviews: {} }, data); save(); renderBible(); $("episodeView").hidden = true;
+    if (state.bible && !confirm(`เปิดไฟล์นี้จะแทนที่เรื่อง "${state.bible.title}" ที่เปิดอยู่ (มีสำรองไว้) ทำต่อไหม?`)) return;
+    if (state.bible) save(true);
+    Object.assign(state, { episodes: {}, reviews: {}, spent: 0 }, data); save(true); renderBible(); $("episodeView").hidden = true;
     toast("เปิดโปรเจกต์แล้ว");
   } catch { toast("ไฟล์ไม่ถูกต้อง"); }
 }
 
+// ---------- backups ----------
+function modal(html) { $("modalBody").innerHTML = html; $("modal").hidden = false; }
+$("modalClose").onclick = () => ($("modal").hidden = true);
+const fmtTime = (t) => new Date(t).toLocaleString("th-TH", { dateStyle: "medium", timeStyle: "short" });
+
+$("btnBackups").onclick = async () => {
+  try {
+    const { backups } = await (await fetch("/api/backups")).json();
+    modal(`<h3>🕘 งานที่บันทึกไว้ในคอมนี้</h3>
+      <p class="muted small">บันทึกอัตโนมัติทุกครั้งที่มีการเปลี่ยนแปลงใหญ่ เก็บไว้ 10 ครั้งล่าสุด (โฟลเดอร์ ai-drama-studio/data)</p>
+      ${backups.length ? backups.map((b) => `<div class="ep"><div><b>${esc(b.title || "ไม่มีชื่อ")}</b><br>
+        <span class="muted small">${fmtTime(b.time)} · บทถ่ายทำ ${b.episodes} ตอน</span></div>
+        <button class="ghost" data-restore="${esc(b.file)}">กู้คืน</button></div>`).join("") : "<p>ยังไม่มีงานที่บันทึกไว้</p>"}`);
+    document.querySelectorAll("[data-restore]").forEach((btn) => (btn.onclick = () => restore(btn.dataset.restore)));
+  } catch { toast("เปิดรายการไม่ได้"); }
+};
+
+async function restore(file) {
+  if (state.bible && !confirm("กู้คืนงานนี้แทนเรื่องที่เปิดอยู่? (เรื่องที่เปิดอยู่จะถูกสำรองไว้ก่อน)")) return;
+  if (state.bible) save(true);
+  try {
+    const data = await (await fetch(`/api/backup/${file}`)).json();
+    if (!data.bible) throw new Error();
+    Object.assign(state, { episodes: {}, reviews: {}, spent: 0 }, data);
+    try { localStorage.setItem("aiDramaStudio", JSON.stringify(state)); } catch {}
+    $("modal").hidden = true; renderBible(); $("episodeView").hidden = true; save();
+    toast("กู้คืนแล้ว ✓");
+  } catch { toast("กู้คืนไม่ได้"); }
+}
+
+// ---------- start ----------
 renderBible();
+save();
+(async () => {
+  // pick up a job that was still running when the page was closed
+  let pending = null;
+  try { pending = JSON.parse(localStorage.getItem(PENDING_KEY)); } catch {}
+  if (pending?.id) return waitJob(pending.id, pending.type, pending.meta || {});
+  // browser storage empty but a saved project exists on this computer: offer it
+  if (!state.bible) {
+    try {
+      const { current } = await (await fetch("/api/backups")).json();
+      if (current?.title && confirm(`พบงานที่บันทึกไว้: "${current.title}" (บทถ่ายทำ ${current.episodes} ตอน)\nเปิดงานนี้ต่อไหม?`)) restore("current");
+    } catch {}
+  }
+})();
